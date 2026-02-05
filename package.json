@@ -1,5 +1,7 @@
 {
-  "dependencies": {
-    "@supabase/supabase-js": "^2.94.1"
+  "scripts": {
+    "build": "cd app && npm install --legacy-peer-deps --ignore-scripts && npm run build && cd .. && rm -rf dist && cp -r app/dist dist",
+    "dev": "cd app && npm run dev",
+    "postinstall": "cd app && npm install --legacy-peer-deps --ignore-scripts"
   }
 }
