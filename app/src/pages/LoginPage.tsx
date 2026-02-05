@@ -8,18 +8,22 @@ import { ArrowLeft, Check, Eye, EyeOff } from 'lucide-react';
 export function LoginPage() {
   const { navigateTo } = useNavigationStore();
   const { login } = useAuthStore();
-  const [email, setEmail] = useState('dtsteele17@gmail.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
     setIsLoading(true);
-    const success = await login(email, password);
+    const result = await login(email, password);
     setIsLoading(false);
-    if (success) {
+    if (result.success) {
       navigateTo('dashboard');
+    } else {
+      setError(result.error || 'Login failed');
     }
   };
 
@@ -87,6 +91,12 @@ export function LoginPage() {
           <p className="text-gray-400 mb-8">Sign in to your FIVE01 account</p>
 
           <form onSubmit={handleLogin} className="space-y-6">
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
               <Input
@@ -95,6 +105,7 @@ export function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                 placeholder="your@email.com"
+                required
               />
             </div>
 
@@ -112,6 +123,7 @@ export function LoginPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 pr-10"
                   placeholder="••••••••"
+                  required
                 />
                 <button
                   type="button"

@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useNavigationStore, useAuthStore } from '@/store';
 import { HomePage } from '@/pages/HomePage';
 import { LoginPage } from '@/pages/LoginPage';
@@ -17,7 +18,11 @@ import { TrainingPage } from '@/pages/TrainingPage';
 
 function App() {
   const { currentPage } = useNavigationStore();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, initAuth } = useAuthStore();
+
+  useEffect(() => {
+    initAuth();
+  }, [initAuth]);
 
   // Protected pages that require authentication
   const protectedPages = [

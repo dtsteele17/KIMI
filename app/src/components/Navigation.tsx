@@ -1,5 +1,5 @@
 import { useNavigationStore, useAuthStore } from '@/store';
-import { Target, Bell, Home, Play, Trophy, Users, BarChart3 } from 'lucide-react';
+import { Target, Bell, Home, Play, Trophy, Users, BarChart3, LogOut } from 'lucide-react';
 
 interface NavigationProps {
   currentPage: string;
@@ -7,7 +7,12 @@ interface NavigationProps {
 
 export function Navigation({ currentPage }: NavigationProps) {
   const { navigateTo } = useNavigationStore();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
+
+  const handleLogout = async () => {
+    await logout();
+    navigateTo('home');
+  };
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: Home },
@@ -84,12 +89,25 @@ export function Navigation({ currentPage }: NavigationProps) {
         </button>
 
         {/* Profile */}
-        <button 
-          onClick={() => navigateTo('profile')}
-          className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-medium text-sm"
-        >
-          {user?.displayName?.charAt(0) || 'U'}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigateTo('profile')}
+            className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors"
+          >
+            <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-medium text-sm">
+              {user?.displayName?.charAt(0) || user?.username?.charAt(0) || 'U'}
+            </div>
+            <span className="text-white text-sm font-medium">{user?.username || 'User'}</span>
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+            title="Logout"
+          >
+            <LogOut className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </nav>
   );

@@ -8,25 +8,36 @@ import { ArrowLeft, Check, Eye, EyeOff } from 'lucide-react';
 export function SignupPage() {
   const { navigateTo } = useNavigationStore();
   const { signup } = useAuthStore();
-  const [username, setUsername] = useState('dartmaster');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
     if (password !== confirmPassword) {
-      alert('Passwords do not match');
+      setError('Passwords do not match');
       return;
     }
+
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
     setIsLoading(true);
-    const success = await signup(username, email, password);
+    const result = await signup(username, email, password);
     setIsLoading(false);
-    if (success) {
+    if (result.success) {
       navigateTo('dashboard');
+    } else {
+      setError(result.error || 'Signup failed');
     }
   };
 
@@ -94,6 +105,12 @@ export function SignupPage() {
           <p className="text-gray-400 mb-8">Join the FIVE01 community today</p>
 
           <form onSubmit={handleSignup} className="space-y-6">
+            {error && (
+              <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                {error}
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">Username</label>
               <Input
@@ -102,6 +119,7 @@ export function SignupPage() {
                 onChange={(e) => setUsername(e.target.value)}
                 className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                 placeholder="Enter username"
+                required
               />
             </div>
 
@@ -113,6 +131,7 @@ export function SignupPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500"
                 placeholder="your@email.com"
+                required
               />
             </div>
 
@@ -125,6 +144,8 @@ export function SignupPage() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 pr-10"
                   placeholder="••••••••"
+                  required
+                  minLength={6}
                 />
                 <button
                   type="button"
@@ -145,6 +166,8 @@ export function SignupPage() {
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="bg-gray-800 border-gray-700 text-white placeholder:text-gray-500 pr-10"
                   placeholder="••••••••"
+                  required
+                  minLength={6}
                 />
                 <button
                   type="button"
