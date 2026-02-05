@@ -79,7 +79,7 @@ export function QuickMatchBrowser() {
       // If someone joined, redirect both players to game
       if (match.status === 'in_progress' && match.player2_id) {
         setMyLobby(null);
-        navigateTo('game');
+        navigateTo('game', { matchId });
       }
     } catch (error) {
       console.error('Failed to check lobby:', error);
@@ -107,7 +107,7 @@ export function QuickMatchBrowser() {
       setLoading(true);
       await quickMatchService.joinLobby(matchId);
       // Successfully joined, navigate to game immediately
-      navigateTo('game');
+      navigateTo('game', { matchId });
     } catch (error: any) {
       alert(error.message || 'Failed to join lobby');
       loadLobbies(); // Refresh to remove taken lobby

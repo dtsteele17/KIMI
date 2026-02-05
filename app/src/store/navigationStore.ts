@@ -3,10 +3,12 @@ import type { Page } from '@/types';
 
 interface NavigationState {
   currentPage: Page;
-  navigateTo: (page: Page) => void;
+  routeParams: Record<string, string>;
+  navigateTo: (page: Page, params?: Record<string, string>) => void;
 }
 
 export const useNavigationStore = create<NavigationState>((set) => ({
   currentPage: 'home',
-  navigateTo: (page) => set({ currentPage: page }),
+  routeParams: {},
+  navigateTo: (page, params = {}) => set({ currentPage: page, routeParams: params }),
 }));
