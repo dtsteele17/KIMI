@@ -68,9 +68,41 @@ export function GamePage() {
   const loadGameData = async () => {
     try {
       if (!matchId) return;
-      const data = await gameService.getMatchWithDetails(matchId);
-      setMatch(data);
       
+      // Get match
+      const matchData = await gameService.getMatchWithDetails(matchId);
+      setMatch(matchData);
+      
+      // Get or create current leg (with retry for race conditions)
+      let leg = null;
+      let retries = 0;
+      while (!leg && retries < 3) {
+        try {
+          leg = await gameService.getCurrentLeg(matchId);
+        } catch (err: any) {
+          if (err.code === '23505') {
+            // Duplicate key, wait and retry
+            await new Promise(r => setTimeout(r, 500));
+            retries++;
+          } else {
+            throw err;
+          }
+        }
+      }
+      
+      if (leg) {
+        setCurrentLeg(leg);
+        const legVisits = await gameService.getLegVisits(leg.id);
+        setVisits(legVisits);
+      }
+      
+      setLoading(false);
+    } catch (err: any) {
+      console.error('Load game error:', err);
+      setError(err.message);
+      setLoading(false);
+    }
+  };
       // Get current leg
       const leg = await gameService.getCurrentLeg(matchId);
       setCurrentLeg(leg);
