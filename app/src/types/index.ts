@@ -157,19 +157,20 @@ export interface Friend {
   lastSeen?: string;
 }
 
-export type Page = 
-  | 'home' 
-  | 'login' 
-  | 'signup' 
-  | 'dashboard' 
-  | 'play' 
-  | 'ranked-divisions' 
-  | 'leagues' 
+export type Page =
+  | 'home'
+  | 'login'
+  | 'signup'
+  | 'dashboard'
+  | 'play'
+  | 'lobby'
+  | 'ranked-divisions'
+  | 'leagues'
   | 'league-detail'
-  | 'tournaments' 
+  | 'tournaments'
   | 'tournament-detail'
-  | 'stats' 
-  | 'profile' 
-  | 'friends' 
-  | 'game' 
+  | 'stats'
+  | 'profile'
+  | 'friends'
+  | 'game'
   | 'training';
