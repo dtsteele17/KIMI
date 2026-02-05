@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { gameService } from '@/services/gameService';
 import { useAuthStore } from '@/store';
 import type { Match, Leg, Visit, Profile } from '@/types/database';
-import { ChevronLeft, Trophy, Wifi } from 'lucide-react';
+import { ChevronLeft, Wifi } from 'lucide-react';
 
 interface MatchWithPlayers extends Match {
   player1: Profile;
@@ -32,7 +32,6 @@ export function GamePage() {
     {score: 0, multiplier: 1},
     {score: 0, multiplier: 1}
   ]);
-  const [editingVisit, setEditingVisit] = useState<string | null>(null);
 
   // Subscribe to game updates
   useEffect(() => {
@@ -197,11 +196,11 @@ export function GamePage() {
         match_id: match.id,
         player_id: user.id,
         visit_number: visits.filter(v => v.leg_id === currentLeg.id).length + 1,
-        dart1_score: dartScores[0].score || null,
+        dart1_score: dartScores[0].score || undefined,
         dart1_multiplier: dartScores[0].multiplier,
-        dart2_score: dartScores[1].score || null,
+        dart2_score: dartScores[1].score || undefined,
         dart2_multiplier: dartScores[1].multiplier,
-        dart3_score: dartScores[2].score || null,
+        dart3_score: dartScores[2].score || undefined,
         dart3_multiplier: dartScores[2].multiplier,
         total_scored: bust ? 0 : totalScored,
         remaining_before: remainingBefore,
@@ -240,7 +239,7 @@ export function GamePage() {
         alert(`${isPlayer1 ? match.player1.display_name : match.player2.display_name} wins!`);
         navigate('/dashboard');
       } else {
-        await gameService.createNewLeg(match.id, match.current_leg + 1, match.game_mode_id);
+        await gameService.createNewLeg(match.id, match.current_leg + 1, match.game_mode_id || '501');
       }
     } catch (err) {
       console.error('Error:', err);
@@ -355,8 +354,8 @@ export function GamePage() {
   if (error) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center text-red-500">{error}</div>;
   if (!match || !currentLeg) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">Game not found</div>;
 
-  const player1Score = getPlayerScore(match.player1_id);
-  const player2Score = getPlayerScore(match.player2_id);
+  const player1Score = getPlayerScore(match.player1_id || '');
+  const player2Score = getPlayerScore(match.player2_id || '');
   const currentPlayerId = getCurrentPlayerId();
 
   return (
@@ -571,9 +570,9 @@ export function GamePage() {
                           {visit.player_id === match.player1_id ? match.player1.display_name : match.player2.display_name}
                         </div>
                         <div className="text-xs text-gray-400">
-                          {visit.dart1_score > 0 && `${visit.dart1_multiplier === 3 ? 'T' : visit.dart1_multiplier === 2 ? 'D' : ''}${visit.dart1_score} `}
-                          {visit.dart2_score > 0 && `${visit.dart2_multiplier === 3 ? 'T' : visit.dart2_multiplier === 2 ? 'D' : ''}${visit.dart2_score} `}
-                          {visit.dart3_score > 0 && `${visit.dart3_multiplier === 3 ? 'T' : visit.dart3_multiplier === 2 ? 'D' : ''}${visit.dart3_score}`}
+                          {(visit.dart1_score || 0) > 0 && `${visit.dart1_multiplier === 3 ? 'T' : visit.dart1_multiplier === 2 ? 'D' : ''}${visit.dart1_score} `}
+                          {(visit.dart2_score || 0) > 0 && `${visit.dart2_multiplier === 3 ? 'T' : visit.dart2_multiplier === 2 ? 'D' : ''}${visit.dart2_score} `}
+                          {(visit.dart3_score || 0) > 0 && `${visit.dart3_multiplier === 3 ? 'T' : visit.dart3_multiplier === 2 ? 'D' : ''}${visit.dart3_score}`}
                         </div>
                       </div>
                       <div className="text-right">
