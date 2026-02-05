@@ -7,6 +7,12 @@ import { DashboardPage } from '@/pages/DashboardPage';
 import { PlayPage } from '@/pages/PlayPage';
 import { QuickMatchBrowser } from '@/pages/QuickMatchBrowser';
 import { QuickMatchLobby } from '@/pages/QuickMatchLobby';
+
+// Add to your routing logic:
+case 'quick-match':
+  return <QuickMatchBrowser />;
+case 'lobby-waiting':
+  return <QuickMatchLobby />;
 import { RankedDivisionsPage } from '@/pages/RankedDivisionsPage';
 import { LeaguesPage } from '@/pages/LeaguesPage';
 import { LeagueDetailPage } from '@/pages/LeagueDetailPage';
