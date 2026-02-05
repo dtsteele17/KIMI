@@ -26,25 +26,32 @@ export class WebRTCService {
   }
 
   // Get ICE servers from Xirsys
-  private async getXirsysIceServers(): Promise<XirsysIceServers> {
-    const response = await fetch('https://global.xirsys.net/_turn/MyFirstApp', {
-      method: 'PUT',
-      headers: {
-        'Authorization': 'Basic ' + btoa('YOUR_XIRSYS_IDENT:YOUR_XIRSYS_SECRET'),
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        format: "urls",
-        expire: 3600 // 1 hour
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to get Xirsys ICE servers');
-    }
-
-    return await response.json();
+ private async getXirsysIceServers(): Promise<XirsysIceServers> {
+  const ident = import.meta.env.VITE_XIRSYS_IDENT;
+  const secret = import.meta.env.VITE_XIRSYS_SECRET;
+  
+  if (!ident || !secret) {
+    throw new Error('Xirsys credentials not configured');
   }
+
+  const response = await fetch('https://global.xirsys.net/_turn/MyFirstApp', {
+    method: 'PUT',
+    headers: {
+      'Authorization': 'Basic ' + btoa(`steele17 : 6ffd4eca-f979-11f0-865b-0242ac150003`),
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      format: "urls",
+      expire: 3600
+    })
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to get Xirsys ICE servers');
+  }
+
+  return await response.json();
+}
 
   // Initialize WebRTC connection
   async initialize(isInitiator: boolean) {
