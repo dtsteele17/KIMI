@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type { Match, Profile } from '@/types/database';
 
 export const quickMatchService = {
-  // Create a new quick match lobby
+  // Create a new lobby
   async createLobby(gameModeId: string, legsToWin: number = 3) {
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('Not authenticated');
@@ -14,7 +14,7 @@ export const quickMatchService = {
         player1_id: user.user.id,
         status: 'waiting',
         legs_to_win: legsToWin,
-        is_ranked: true,
+        is_ranked: false,
         is_private: false,
       })
       .select('*, player1:profiles!player1_id(*)')
@@ -24,7 +24,7 @@ export const quickMatchService = {
     return data as Match & { player1: Profile };
   },
 
-  // Get all available lobbies (waiting for opponent)
+  // Get all available lobbies
   async getAvailableLobbies() {
     const { data, error } = await supabase
       .from('matches')
@@ -43,16 +43,28 @@ export const quickMatchService = {
     const { data: user } = await supabase.auth.getUser();
     if (!user.user) throw new Error('Not authenticated');
 
+    // First check if lobby is still available
+    const { data: checkData } = await supabase
+      .from('matches')
+      .select('status, player2_id')
+      .eq('id', matchId)
+      .single();
+
+    if (!checkData || checkData.status !== 'waiting' || checkData.player2_id) {
+      throw new Error('Lobby no longer available');
+    }
+
     const { data, error } = await supabase
       .from('matches')
       .update({
         player2_id: user.user.id,
         status: 'in_progress',
         started_at: new Date().toISOString(),
+        current_player_id: user.user.id, // Player 2 starts
       })
       .eq('id', matchId)
-      .eq('status', 'waiting') // Only join if still waiting
-      .is('player2_id', null) // Only join if no opponent yet
+      .eq('status', 'waiting')
+      .is('player2_id', null)
       .select('*, player1:profiles!player1_id(*), player2:profiles!player2_id(*)')
       .single();
 
@@ -61,7 +73,7 @@ export const quickMatchService = {
     return data as Match & { player1: Profile; player2: Profile };
   },
 
-  // Subscribe to lobby changes (real-time)
+  // Subscribe to lobby updates (for when someone joins your lobby)
   subscribeToLobby(matchId: string, onUpdate: (match: Match) => void) {
     return supabase
       .channel(`lobby:${matchId}`)
@@ -80,26 +92,26 @@ export const quickMatchService = {
       .subscribe();
   },
 
-  // Subscribe to new lobbies (for browsing)
-  subscribeToNewLobbies(onNewLobby: (match: Match) => void) {
+  // Subscribe to new lobbies (for browser page)
+  subscribeToNewLobbies(onUpdate: () => void) {
     return supabase
       .channel('new-lobbies')
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: 'matches',
           filter: 'status=eq.waiting',
         },
-        (payload) => {
-          onNewLobby(payload.new as Match);
+        () => {
+          onUpdate();
         }
       )
       .subscribe();
   },
 
-  // Cancel/delete lobby (if creator leaves)
+  // Cancel/delete lobby
   async cancelLobby(matchId: string) {
     const { data: user } = await supabase.auth.getUser();
     
@@ -112,4 +124,16 @@ export const quickMatchService = {
 
     if (error) throw error;
   },
+
+  // Get a specific match
+  async getMatch(matchId: string) {
+    const { data, error } = await supabase
+      .from('matches')
+      .select('*, player1:profiles!player1_id(*), player2:profiles!player2_id(*)')
+      .eq('id', matchId)
+      .single();
+
+    if (error) throw error;
+    return data as Match & { player1: Profile; player2?: Profile };
+  }
 };
