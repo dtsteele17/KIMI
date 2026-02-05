@@ -30,53 +30,59 @@ export const gameService = {
       return existingLegs[0];
     }
 
-    // No leg exists, create one (but check again to avoid race condition)
-    return this.createLeg(matchId, 1);
-  },
-
-  async createLeg(matchId: string, legNumber: number) {
-    const { data: match } = await supabase
+    // No leg exists, get match info first
+    const { data: match, error: matchError } = await supabase
       .from('matches')
       .select('game_mode_id')
       .eq('id', matchId)
       .single();
 
+    if (matchError) throw matchError;
+
     const startingScore = match?.game_mode_id === '301' ? 301 : 501;
 
-    // Use RPC or handle conflict gracefully
-    const { data, error } = await supabase
-      .from('legs')
-      .insert({
-        match_id: matchId,
-        leg_number: legNumber,
-        player1_starting_score: startingScore,
-        player2_starting_score: startingScore,
-        player1_remaining: startingScore,
-        player2_remaining: startingScore,
-      })
-      .select()
-      .single();
+    // Try to create leg, handle race condition
+    try {
+      const { data, error } = await supabase
+        .from('legs')
+        .insert({
+          match_id: matchId,
+          leg_number: 1,
+          player1_starting_score: startingScore,
+          player2_starting_score: startingScore,
+          player1_remaining: startingScore,
+          player2_remaining: startingScore,
+        })
+        .select()
+        .single();
 
-    // If duplicate error, just fetch the existing leg
-    if (error && error.code === '23505') {
-      const { data: existingLeg } = await supabase
+      if (error) {
+        // If duplicate, fetch existing
+        if (error.code === '23505') {
+          const { data: existing } = await supabase
+            .from('legs')
+            .select('*')
+            .eq('match_id', matchId)
+            .eq('leg_number', 1)
+            .single();
+          return existing;
+        }
+        throw error;
+      }
+
+      return data;
+    } catch (err) {
+      // Try one more time to fetch if creation failed
+      const { data: existing } = await supabase
         .from('legs')
         .select('*')
         .eq('match_id', matchId)
-        .eq('leg_number', legNumber)
+        .eq('leg_number', 1)
         .single();
-      return existingLeg;
+      
+      if (existing) return existing;
+      throw err;
     }
-
-    if (error) throw error;
-    
-    // Update match current_leg
-    await supabase
-      .from('matches')
-      .update({ current_leg: legNumber })
-      .eq('id', matchId);
-
-    return data;
   },
 
   async getLegVisits(legId: string) {
@@ -125,6 +131,61 @@ export const gameService = {
     if (error) throw error;
   },
 
+  async createNewLeg(matchId: string, legNumber: number, gameMode: string) {
+    const startingScore = gameMode === '301' ? 301 : 501;
+
+    try {
+      const { data, error } = await supabase
+        .from('legs')
+        .insert({
+          match_id: matchId,
+          leg_number: legNumber,
+          player1_starting_score: startingScore,
+          player2_starting_score: startingScore,
+          player1_remaining: startingScore,
+          player2_remaining: startingScore,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Update match current_leg
+      await supabase
+        .from('matches')
+        .update({ current_leg: legNumber })
+        .eq('id', matchId);
+
+      return data;
+    } catch (err) {
+      // If duplicate, fetch existing
+      const error = err as { code?: string };
+      if (error.code === '23505') {
+        const { data: existing } = await supabase
+          .from('legs')
+          .select('*')
+          .eq('match_id', matchId)
+          .eq('leg_number', legNumber)
+          .single();
+        return existing;
+      }
+      throw err;
+    }
+  },
+
+  async updateMatchLegsWon(matchId: string, player: 'player1' | 'player2', legsWon: number) {
+    const updateData = player === 'player1' 
+      ? { player1_legs_won: legsWon }
+      : { player2_legs_won: legsWon };
+    
+    const { error } = await supabase
+      .from('matches')
+      .update(updateData)
+      .eq('id', matchId);
+
+    if (error) throw error;
+  },
+
   async endMatch(matchId: string, winnerId: string) {
     const { error } = await supabase
       .from('matches')
@@ -138,7 +199,6 @@ export const gameService = {
     if (error) throw error;
   },
 
-  // Subscribe to match updates
   subscribeToMatch(matchId: string, callback: (payload: any) => void) {
     return supabase
       .channel(`match:${matchId}`)
