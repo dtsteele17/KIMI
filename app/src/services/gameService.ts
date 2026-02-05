@@ -198,7 +198,43 @@ export const gameService = {
 
     if (error) throw error;
   },
+  async forfeitMatch(matchId: string, playerId: string) {
+    // Get match first
+    const { data: match } = await supabase
+      .from('matches')
+      .select('*')
+      .eq('id', matchId)
+      .single();
 
+    if (!match) throw new Error('Match not found');
+
+    // Determine winner (the other player)
+    const winnerId = match.player1_id === playerId ? match.player2_id : match.player1_id;
+
+    // Update match
+    const { error } = await supabase
+      .from('matches')
+      .update({
+        status: 'abandoned',
+        winner_id: winnerId,
+        ended_at: new Date().toISOString(),
+        forfeited_by: playerId // You'll need to add this column
+      })
+      .eq('id', matchId);
+
+    if (error) throw error;
+
+    // Record forfeit event
+    await supabase
+      .from('match_events')
+      .insert({
+        match_id: matchId,
+        event_type: 'forfeit',
+        player_id: playerId,
+        payload: { reason: 'Player forfeited' }
+      });
+  }
+  
   subscribeToMatch(matchId: string, callback: (payload: any) => void) {
     return supabase
       .channel(`match:${matchId}`)
