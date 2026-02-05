@@ -1,0 +1,15 @@
+export { HomePage } from './HomePage';
+export { LoginPage } from './LoginPage';
+export { SignupPage } from './SignupPage';
+export { DashboardPage } from './DashboardPage';
+export { PlayPage } from './PlayPage';
+export { RankedDivisionsPage } from './RankedDivisionsPage';
+export { LeaguesPage } from './LeaguesPage';
+export { LeagueDetailPage } from './LeagueDetailPage';
+export { TournamentsPage } from './TournamentsPage';
+export { TournamentDetailPage } from './TournamentDetailPage';
+export { StatsPage } from './StatsPage';
+export { ProfilePage } from './ProfilePage';
+export { FriendsPage } from './FriendsPage';
+export { GamePage } from './GamePage';
+export { TrainingPage } from './TrainingPage';
