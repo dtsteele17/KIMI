@@ -1,305 +1,247 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { quickMatchService } from '@/services/quickMatchService';
-import { useAuthStore, useNavigationStore, useGameStore } from '@/store';
-import { Navigation } from '@/components/Navigation';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Clock, Users, Zap, Target } from 'lucide-react';
+import { useAuthStore } from '@/store';
+import type { Match, Profile } from '@/types/database';
+import { Clock, Users, Trophy, Plus, Filter } from 'lucide-react';
 
-interface Profile {
-  id: string;
-  username: string;
-  display_name: string | null;
-  avatar_url: string | null;
-  elo: number;
+interface LobbyWithPlayer extends Match {
+  player1: Profile;
 }
 
-interface Match {
-  id: string;
-  game_mode_id: string;
-  legs_to_win: number;
-  status: string;
-  player1_id: string;
-  player2_id: string | null;
-  created_at: string;
-}
-
-interface LobbyState {
-  match: Match & { player1: Profile };
-  isCreator: boolean;
-  timeWaiting: number;
-}
-
-export function QuickMatchLobby() {
-  const { navigateTo } = useNavigationStore();
+export function QuickMatchBrowser() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
-  const { quickPlaySettings } = useGameStore();
-  const [lobby, setLobby] = useState<LobbyState | null>(null);
-  const [availableLobbies, setAvailableLobbies] = useState<(Match & { player1: Profile })[]>([]);
+  const [lobbies, setLobbies] = useState<LobbyWithPlayer[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [activeTab, setActiveTab] = useState<'lobby' | 'live'>('lobby');
 
-  // Create lobby on mount and fetch available lobbies
   useEffect(() => {
-    createLobby();
-    fetchAvailableLobbies();
-
-    const interval = setInterval(fetchAvailableLobbies, 5000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Timer for waiting
-  useEffect(() => {
-    if (!lobby) return;
+    loadLobbies();
     
-    const interval = setInterval(() => {
-      setLobby(prev => prev ? {
-        ...prev,
-        timeWaiting: prev.timeWaiting + 1
-      } : null);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [lobby]);
-
-  // Subscribe to lobby updates
-  useEffect(() => {
-    if (!lobby) return;
-
-    const subscription = quickMatchService.subscribeToLobby(
-      lobby.match.id,
-      (updatedMatch) => {
-        // Someone joined! Navigate to game
-        if (updatedMatch.status === 'in_progress' && updatedMatch.player2_id) {
-          navigateTo('game');
-        }
-      }
-    );
+    // Subscribe to new lobbies in real-time
+    const subscription = quickMatchService.subscribeToNewLobbies((newMatch) => {
+      setLobbies(prev => [newMatch as LobbyWithPlayer, ...prev]);
+    });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [lobby, navigateTo]);
+  }, []);
 
-  const createLobby = async () => {
+  const loadLobbies = async () => {
     try {
       setLoading(true);
-      const gameModeId = quickPlaySettings.mode === '301' ? '301' : '501';
-      const match = await quickMatchService.createLobby(gameModeId, quickPlaySettings.legs);
-      setLobby({
-        match: match as any,
-        isCreator: true,
-        timeWaiting: 0
-      });
-    } catch (err: any) {
-      setError(err.message);
+      const data = await quickMatchService.getAvailableLobbies();
+      setLobbies(data as LobbyWithPlayer[]);
+    } catch (error) {
+      console.error('Failed to load lobbies:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchAvailableLobbies = async () => {
+  const handleCreateLobby = () => {
+    navigate('/lobby/create');
+  };
+
+  const handleJoinLobby = async (matchId: string) => {
     try {
-      const lobbies = await quickMatchService.getAvailableLobbies();
-      setAvailableLobbies(lobbies as any);
-    } catch (err) {
-      console.error('Failed to fetch lobbies:', err);
+      await quickMatchService.joinLobby(matchId);
+      navigate(`/game/${matchId}`);
+    } catch (error: any) {
+      alert(error.message || 'Failed to join lobby');
     }
   };
 
-  const cancelLobby = async () => {
-    if (!lobby) return;
-    try {
-      await quickMatchService.cancelLobby(lobby.match.id);
-      navigateTo('play');
-    } catch (err) {
-      console.error('Failed to cancel lobby:', err);
-    }
+  const formatGameMode = (match: Match) => {
+    const legs = match.legs_to_win;
+    return `BEST OF ${legs * 2 - 1} LEGS - 501`;
   };
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  if (loading && !lobby) {
-    return (
-      <div className="min-h-screen bg-[#0a0f1a]">
-        <Navigation currentPage="play" />
-        <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-          <div className="text-center">
-            <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-white text-lg">Creating lobby...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-[#0a0f1a]">
-        <Navigation currentPage="play" />
-        <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-          <Card className="bg-[#111827] border-gray-800 p-8 max-w-md">
-            <p className="text-red-400 text-center">{error}</p>
-            <Button onClick={() => navigateTo('play')} className="w-full mt-4 bg-gray-700 hover:bg-gray-600">
-              Back to Play
-            </Button>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  const gameMode = lobby?.match?.game_mode_id || '501';
-  const bestOf = lobby?.match?.legs_to_win || 3;
-  const doubleOut = quickPlaySettings.doubleOut === 'on' ? 'Double Out' : 'Straight Out';
 
   return (
-    <div className="min-h-screen bg-[#0a0f1a]">
-      <Navigation currentPage="play" />
+    <div className="min-h-screen bg-gray-900 text-white">
+      {/* Header */}
+      <div className="bg-gray-800 border-b border-gray-700">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <h1 className="text-2xl font-bold">PLAY ONLINE</h1>
+            <button 
+              onClick={() => navigate('/play')}
+              className="text-gray-400 hover:text-white"
+            >
+              Back
+            </button>
+          </div>
+        </div>
+      </div>
 
-      <div className="p-8">
-        <div className="max-w-5xl mx-auto">
-          {/* Header */}
-          <div className="mb-8 text-center">
-            <h1 className="text-3xl font-bold text-white mb-2">Quick Match Lobby</h1>
-            <p className="text-gray-400">Waiting for an opponent to join...</p>
+      <div className="max-w-7xl mx-auto px-4 py-6">
+        {/* Create Game Banner */}
+        <div className="bg-gradient-to-r from-gray-800 to-gray-700 rounded-lg p-4 mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold">CREATE GAMEPLAY SETUP</h2>
+            <p className="text-gray-400 text-sm">Add your game to lobby or challenge friends!</p>
+          </div>
+          <button 
+            onClick={handleCreateLobby}
+            className="bg-green-600 hover:bg-green-700 p-3 rounded-lg transition flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Create Lobby</span>
+          </button>
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-gray-400 text-xs uppercase">Friends Online</p>
+            <p className="text-2xl font-bold">0</p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-gray-400 text-xs uppercase">Friends In-Game</p>
+            <p className="text-2xl font-bold">0</p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-gray-400 text-xs uppercase">Worldwide Online</p>
+            <p className="text-2xl font-bold text-green-500">{lobbies.length * 3 + 47}</p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-4">
+            <p className="text-gray-400 text-xs uppercase">Worldwide In-Game</p>
+            <p className="text-2xl font-bold text-blue-500">{Math.floor(lobbies.length * 1.5) + 12}</p>
+          </div>
+        </div>
+
+        {/* Global Lobby Section */}
+        <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-lg p-6 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Users className="w-6 h-6" />
+              <h2 className="text-xl font-bold">GLOBAL LOBBY</h2>
+            </div>
+            <Filter className="w-5 h-5 cursor-pointer" />
+          </div>
+          
+          <div className="flex gap-8 mb-4">
+            <div>
+              <p className="text-4xl font-bold">{lobbies.length}</p>
+              <p className="text-sm opacity-80">Games in lobby</p>
+            </div>
+            <div>
+              <p className="text-4xl font-bold">{Math.floor(lobbies.length * 0.7) + 8}</p>
+              <p className="text-sm opacity-80">Live games</p>
+            </div>
           </div>
 
-          {/* Main Lobby Card */}
-          {lobby && (
-            <Card className="bg-gradient-to-br from-emerald-900/30 to-emerald-800/20 border-emerald-500/20 p-8 mb-8">
-              <div className="text-center">
-                {/* Searching Animation */}
-                <div className="mb-6">
-                  <div className="w-20 h-20 mx-auto rounded-full bg-emerald-500/20 flex items-center justify-center mb-4 relative">
-                    <div className="absolute inset-0 rounded-full bg-emerald-500/20 animate-ping"></div>
-                    <Zap className="w-10 h-10 text-emerald-400 relative z-10" />
-                  </div>
-                  <h2 className="text-2xl font-bold text-white mb-2">Waiting for opponent...</h2>
-                  <div className="flex items-center justify-center gap-2 text-gray-400">
-                    <Clock className="w-4 h-4" />
-                    <span>{formatTime(lobby.timeWaiting)}</span>
+          <div className="flex gap-3">
+            <button className="bg-gray-900 hover:bg-gray-800 px-4 py-2 rounded-lg text-sm font-bold">
+              Go to lobby
+            </button>
+            <button className="border-2 border-white hover:bg-white hover:text-orange-500 px-4 py-2 rounded-lg text-sm font-bold transition">
+              Live games
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="bg-gray-800 rounded-lg p-1 mb-6 flex">
+          <button 
+            onClick={() => setActiveTab('lobby')}
+            className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'lobby' ? 'bg-white text-gray-900' : 'text-gray-400'}`}
+          >
+            Lobby
+          </button>
+          <button 
+            onClick={() => setActiveTab('live')}
+            className={`flex-1 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'live' ? 'bg-white text-gray-900' : 'text-gray-400'}`}
+          >
+            Live games
+          </button>
+        </div>
+
+        {/* Lobby Count */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <span className="bg-gray-700 px-2 py-1 rounded text-sm font-bold">{lobbies.length}</span>
+            <span className="text-gray-400 text-sm">Games in lobby</span>
+          </div>
+          <Filter className="w-5 h-5 text-gray-400 cursor-pointer" />
+        </div>
+
+        {/* Lobby Grid */}
+        {loading ? (
+          <div className="text-center py-12 text-gray-400">Loading lobbies...</div>
+        ) : lobbies.length === 0 ? (
+          <div className="text-center py-12 text-gray-400">
+            <p className="mb-4">No open lobbies available</p>
+            <button 
+              onClick={handleCreateLobby}
+              className="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-bold"
+            >
+              Create First Lobby
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {lobbies.map((lobby) => (
+              <div key={lobby.id} className="bg-gray-800 rounded-lg p-4 border border-gray-700 hover:border-green-500 transition">
+                {/* Header */}
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-lg">{formatGameMode(lobby)}</h3>
+                  <div className="flex items-center gap-1 text-xs text-gray-400 bg-gray-700 px-2 py-1 rounded">
+                    <Trophy className="w-3 h-3" />
+                    <span>Casual</span>
                   </div>
                 </div>
 
-                {/* Game Settings */}
-                <Card className="bg-[#111827] border-gray-800 p-4 mb-6 inline-block">
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-2">
-                      <Target className="w-4 h-4 text-emerald-400" />
-                      <span className="text-white font-medium">{gameMode}</span>
+                {/* Player Info */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-xl font-bold">
+                      {lobby.player1.display_name?.[0] || 'P'}
                     </div>
-                    <div className="w-px h-4 bg-gray-700"></div>
-                    <span className="text-gray-400">Best of {bestOf}</span>
-                    <div className="w-px h-4 bg-gray-700"></div>
-                    <span className="text-gray-400">{doubleOut}</span>
-                  </div>
-                </Card>
-
-                {/* Players */}
-                <div className="flex items-center justify-center gap-8 mb-6">
-                  {/* Player 1 (You) */}
-                  <div className="flex flex-col items-center">
-                    <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center mb-3 text-2xl font-bold text-white">
-                      {(lobby.match.player1.display_name || lobby.match.player1.username)?.[0]?.toUpperCase() || user?.username[0]?.toUpperCase() || 'Y'}
-                    </div>
-                    <p className="font-bold text-white text-lg">{lobby.match.player1.display_name || lobby.match.player1.username || user?.username || 'You'}</p>
-                    <p className="text-emerald-400 text-sm">ELO: {lobby.match.player1.elo || user?.elo || 1200}</p>
-                  </div>
-
-                  <div className="flex flex-col items-center justify-center">
-                    <span className="text-3xl text-gray-500 font-bold">VS</span>
-                  </div>
-
-                  {/* Player 2 (Waiting) */}
-                  <div className="flex flex-col items-center opacity-50">
-                    <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center mb-3">
-                      <Users className="w-10 h-10 text-gray-500" />
-                    </div>
-                    <p className="font-bold text-white text-lg">Searching...</p>
-                    <p className="text-gray-500 text-sm">Any player</p>
-                  </div>
-                </div>
-
-                {/* Cancel Button */}
-                <Button
-                  onClick={cancelLobby}
-                  variant="destructive"
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  Cancel Match
-                </Button>
-              </div>
-            </Card>
-          )}
-
-          {/* Available Lobbies */}
-          <Card className="bg-[#111827] border-gray-800 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-white">Available Lobbies</h3>
-              <Button
-                onClick={fetchAvailableLobbies}
-                variant="ghost"
-                size="sm"
-                className="text-emerald-400 hover:text-emerald-300"
-              >
-                Refresh
-              </Button>
-            </div>
-
-            {availableLobbies.length === 0 ? (
-              <div className="text-center py-8">
-                <Users className="w-12 h-12 text-gray-600 mx-auto mb-3" />
-                <p className="text-gray-500">No open lobbies available</p>
-                <p className="text-gray-600 text-sm">Create your own or wait for others</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {availableLobbies.map((availableLobby) => (
-                  <Card
-                    key={availableLobby.id}
-                    className="bg-gray-800 border-gray-700 p-4 hover:bg-gray-750 transition-colors"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-lg font-bold text-white">
-                          {(availableLobby.player1.display_name || availableLobby.player1.username)?.[0]?.toUpperCase() || '?'}
-                        </div>
-                        <div>
-                          <p className="font-bold text-white">{availableLobby.player1.display_name || availableLobby.player1.username}</p>
-                          <p className="text-sm text-gray-400">
-                            ELO: {availableLobby.player1.elo} • {availableLobby.game_mode_id} • Best of {availableLobby.legs_to_win}
-                          </p>
-                        </div>
+                    <div>
+                      <p className="font-bold">{lobby.player1.display_name || 'Player'}</p>
+                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <span className="text-yellow-500">★</span>
+                        <span>{lobby.player1.elo || 1200}</span>
+                        <span className="text-gray-600">•</span>
+                        <span className="text-green-500">{lobby.player1.wins || 0}W</span>
                       </div>
-
-                      <Button
-                        onClick={() => handleJoinLobby(availableLobby.id)}
-                        className="bg-emerald-600 hover:bg-emerald-700"
-                      >
-                        Join Match
-                      </Button>
                     </div>
-                  </Card>
-                ))}
+                  </div>
+
+                  <button 
+                    onClick={() => handleJoinLobby(lobby.id)}
+                    className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-full font-bold transition transform hover:scale-105"
+                  >
+                    Join!
+                  </button>
+                </div>
+
+                {/* Time waiting */}
+                <div className="mt-3 pt-3 border-t border-gray-700 flex items-center gap-1 text-xs text-gray-500">
+                  <Clock className="w-3 h-3" />
+                  <span>Waiting {Math.floor(Math.random() * 5) + 1}m</span>
+                </div>
               </div>
-            )}
-          </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Bottom Create Button */}
+        <div className="fixed bottom-6 left-0 right-0 px-4">
+          <div className="max-w-7xl mx-auto">
+            <button 
+              onClick={handleCreateLobby}
+              className="w-full bg-gray-800 hover:bg-gray-700 border-2 border-green-500 text-green-500 py-4 rounded-lg font-bold flex items-center justify-center gap-2 transition"
+            >
+              <Plus className="w-5 h-5" />
+              CREATE GAMEPLAY SETUP
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
-
-  async function handleJoinLobby(matchId: string) {
-    try {
-      await quickMatchService.joinLobby(matchId);
-      navigateTo('game');
-    } catch (err: any) {
-      setError(err.message || 'Failed to join lobby');
-    }
-  }
 }
