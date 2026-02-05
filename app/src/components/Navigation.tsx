@@ -1,4 +1,5 @@
-import { useNavigationStore, useAuthStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store';
 import { Target, Bell, Home, Play, Trophy, Users, BarChart3, LogOut } from 'lucide-react';
 
 interface NavigationProps {
@@ -6,30 +7,30 @@ interface NavigationProps {
 }
 
 export function Navigation({ currentPage }: NavigationProps) {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { user, logout } = useAuthStore();
 
   const handleLogout = async () => {
     await logout();
-    navigateTo('home');
+    navigate('/');
   };
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: Home },
-    { id: 'play', label: 'Play', icon: Play },
-    { id: 'ranked-divisions', label: 'Ranked Divisions', icon: Trophy },
-    { id: 'leagues', label: 'Leagues', icon: Users },
-    { id: 'tournaments', label: 'Tournaments', icon: Trophy },
-    { id: 'stats', label: 'Stats', icon: BarChart3 },
+    { id: 'dashboard', label: 'Dashboard', icon: Home, path: '/dashboard' },
+    { id: 'play', label: 'Play', icon: Play, path: '/play' },
+    { id: 'ranked-divisions', label: 'Ranked Divisions', icon: Trophy, path: '/ranked-divisions' },
+    { id: 'leagues', label: 'Leagues', icon: Users, path: '/leagues' },
+    { id: 'tournaments', label: 'Tournaments', icon: Trophy, path: '/tournaments' },
+    { id: 'stats', label: 'Stats', icon: BarChart3, path: '/stats' },
   ];
 
   return (
     <nav className="flex items-center justify-between px-6 py-3 bg-[#0d1117] border-b border-gray-800">
       <div className="flex items-center gap-8">
         {/* Logo */}
-        <div 
+        <div
           className="flex items-center gap-2 cursor-pointer"
-          onClick={() => navigateTo('dashboard')}
+          onClick={() => navigate('/dashboard')}
         >
           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-400 to-emerald-600 flex items-center justify-center">
             <Target className="w-5 h-5 text-white" />
@@ -51,10 +52,10 @@ export function Navigation({ currentPage }: NavigationProps) {
             return (
               <button
                 key={item.id}
-                onClick={() => navigateTo(item.id as any)}
+                onClick={() => navigate(item.path)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                  isActive 
-                    ? 'bg-emerald-500/20 text-emerald-400' 
+                  isActive
+                    ? 'bg-emerald-500/20 text-emerald-400'
                     : 'text-gray-400 hover:text-white hover:bg-gray-800'
                 }`}
               >
@@ -91,7 +92,7 @@ export function Navigation({ currentPage }: NavigationProps) {
         {/* Profile */}
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigateTo('profile')}
+            onClick={() => navigate('/profile')}
             className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-800 transition-colors"
           >
             <div className="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-medium text-sm">
