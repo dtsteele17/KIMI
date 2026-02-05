@@ -65,7 +65,7 @@ export function GamePage() {
     };
   }, [matchId]);
 
-  const loadGameData = async () => {
+    const loadGameData = async () => {
     try {
       if (!matchId) return;
       
@@ -79,13 +79,32 @@ export function GamePage() {
       while (!leg && retries < 3) {
         try {
           leg = await gameService.getCurrentLeg(matchId);
-        } catch (err: any) {
-          if (err.code === '23505') {
+        } catch (err) {
+          const error = err as { code?: string };
+          if (error.code === '23505') {
             // Duplicate key, wait and retry
             await new Promise(r => setTimeout(r, 500));
             retries++;
           } else {
             throw err;
+          }
+        }
+      }
+      
+      if (leg) {
+        setCurrentLeg(leg);
+        const legVisits = await gameService.getLegVisits(leg.id);
+        setVisits(legVisits);
+      }
+      
+      setLoading(false);
+    } catch (err) {
+      console.error('Load game error:', err);
+      const error = err as Error;
+      setError(error.message || 'Failed to load game');
+      setLoading(false);
+    }
+  };
           }
         }
       }
