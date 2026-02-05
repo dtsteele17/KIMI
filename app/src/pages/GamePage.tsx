@@ -1,587 +1,625 @@
-import { useEffect, useState } from 'react';
-import { useNavigationStore, useAuthStore } from '@/store';
-import { gameService, checkoutSuggestions, type MatchWithPlayers, type Leg, type Visit } from '@/services/gameService';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { ArrowLeft, Target, Trophy, RotateCcw, Users, Clock } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/store';
+import { gameService } from '@/services/gameService';
+import type { Match, Leg, Visit, Profile } from '@/types/database';
+import { 
+  RotateCcw, Edit2, Check, X, Camera, Mic, 
+  ChevronLeft, Trophy, Target 
+} from 'lucide-react';
 
 export function GamePage() {
-  const { navigateTo, routeParams } = useNavigationStore();
+  const { id: matchId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
-  const matchId = routeParams.matchId;
-
-  const [match, setMatch] = useState<MatchWithPlayers | null>(null);
+  
+  const [match, setMatch] = useState<Match & { 
+    player1: Profile; 
+    player2: Profile 
+  } | null>(null);
   const [currentLeg, setCurrentLeg] = useState<Leg | null>(null);
   const [visits, setVisits] = useState<Visit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
+  // Current dart input
+  const [currentDart, setCurrentDart] = useState(1);
+  const [dartScores, setDartScores] = useState<{score: number, multiplier: number}[]>([
+    {score: 0, multiplier: 1},
+    {score: 0, multiplier: 1},
+    {score: 0, multiplier: 1}
+  ]);
+  const [editingVisit, setEditingVisit] = useState<string | null>(null);
 
-  const [dart1, setDart1] = useState<{ score: number | null; multiplier: number }>({ score: null, multiplier: 1 });
-  const [dart2, setDart2] = useState<{ score: number | null; multiplier: number }>({ score: null, multiplier: 1 });
-  const [dart3, setDart3] = useState<{ score: number | null; multiplier: number }>({ score: null, multiplier: 1 });
-  const [activeMultiplier, setActiveMultiplier] = useState<1 | 2 | 3>(1);
-  const [showResultDialog, setShowResultDialog] = useState(false);
-  const [showConfirmForfeit, setShowConfirmForfeit] = useState(false);
-
-  const isMyTurn = match?.current_player_id === user?.id;
-  const isPlayer1 = match?.player1_id === user?.id;
-  const myRemaining = isPlayer1 ? currentLeg?.player1_remaining : currentLeg?.player2_remaining;
-  const opponentRemaining = isPlayer1 ? currentLeg?.player2_remaining : currentLeg?.player1_remaining;
-  const myDartsThrown = isPlayer1 ? currentLeg?.player1_darts_thrown : currentLeg?.player2_darts_thrown;
-  const opponentDartsThrown = isPlayer1 ? currentLeg?.player2_darts_thrown : currentLeg?.player1_darts_thrown;
-  const myTotalScored = isPlayer1 ? currentLeg?.player1_total_scored : currentLeg?.player2_total_scored;
-  const opponentTotalScored = isPlayer1 ? currentLeg?.player2_total_scored : currentLeg?.player1_total_scored;
-
-  const myAverage = myDartsThrown && myDartsThrown > 0 ? ((myTotalScored || 0) / (myDartsThrown / 3)).toFixed(1) : '0.0';
-  const opponentAverage = opponentDartsThrown && opponentDartsThrown > 0 ? ((opponentTotalScored || 0) / (opponentDartsThrown / 3)).toFixed(1) : '0.0';
-
-  const myVisits = visits.filter(v => v.player_id === user?.id);
-  const currentVisitTotal = (dart1.score || 0) * dart1.multiplier + (dart2.score || 0) * dart2.multiplier + (dart3.score || 0) * dart3.multiplier;
-  const checkoutSuggestion = myRemaining ? checkoutSuggestions[myRemaining] : null;
-
-  const startingScore = parseInt(match?.game_mode_id || '501');
-  const legsToWin = match?.legs_to_win || 3;
-
+  // Load match data
   useEffect(() => {
-    if (!matchId) {
-      navigateTo('play');
-      return;
-    }
-    loadMatchData();
+    if (!matchId) return;
+    loadGameData();
+    
+    // Subscribe to real-time updates
+    const subscription = supabase
+      .channel(`game:${matchId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'matches',
+        filter: `id=eq.${matchId}`,
+      }, () => loadGameData())
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'legs',
+        filter: `match_id=eq.${matchId}`,
+      }, () => loadGameData())
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'visits',
+        filter: `match_id=eq.${matchId}`,
+      }, () => loadGameData())
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, [matchId]);
 
-  const loadMatchData = async () => {
+  const loadGameData = async () => {
     try {
-      setLoading(true);
-      const matchData = await gameService.getMatch(matchId);
-      setMatch(matchData);
-
-      let leg = await gameService.getCurrentLeg(matchId);
-
-      if (!leg) {
-        leg = await gameService.createLeg(matchId, 1, parseInt(matchData.game_mode_id));
-      }
-
+      if (!matchId) return;
+      const data = await gameService.getMatchWithDetails(matchId);
+      setMatch(data);
+      
+      // Get current leg
+      const leg = await gameService.getCurrentLeg(matchId);
       setCurrentLeg(leg);
-      const legVisits = await gameService.getVisitsForLeg(leg.id);
-      setVisits(legVisits);
-    } catch (error) {
-      console.error('Failed to load match:', error);
-      alert('Failed to load match');
-      navigateTo('play');
-    } finally {
+      
+      if (leg) {
+        const legVisits = await gameService.getLegVisits(leg.id);
+        setVisits(legVisits);
+      }
+      
+      setLoading(false);
+    } catch (err: any) {
+      setError(err.message);
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (!matchId || !currentLeg) return;
+  const getCurrentPlayerId = () => {
+    if (!match) return null;
+    // Alternate turns based on visit count
+    const visitCount = visits.length;
+    const isPlayer1Turn = visitCount % 2 === 0;
+    return isPlayer1Turn ? match.player1_id : match.player2_id;
+  };
 
-    const matchSub = gameService.subscribeToMatch(matchId, () => {
-      loadMatchData();
-    });
+  const getCurrentPlayerName = () => {
+    if (!match) return '';
+    const currentId = getCurrentPlayerId();
+    return currentId === match.player1_id 
+      ? match.player1.display_name 
+      : match.player2.display_name;
+  };
 
-    const legSub = gameService.subscribeToLeg(currentLeg.id, () => {
-      loadMatchData();
-    });
+  const getPlayerScore = (playerId: string) => {
+    if (!currentLeg) return 501;
+    
+    // Calculate from visits
+    const playerVisits = visits.filter(v => v.player_id === playerId && !v.is_bust);
+    const totalScored = playerVisits.reduce((sum, v) => sum + v.total_scored, 0);
+    
+    const startingScore = playerId === match?.player1_id 
+      ? currentLeg.player1_starting_score 
+      : currentLeg.player2_starting_score;
+    
+    return (startingScore || 501) - totalScored;
+  };
 
-    const visitsSub = gameService.subscribeToVisits(currentLeg.id, (payload) => {
-      setVisits(prev => [...prev, payload.new as Visit]);
-    });
+  const isMyTurn = () => {
+    return getCurrentPlayerId() === user?.id;
+  };
 
-    return () => {
-      matchSub.unsubscribe();
-      legSub.unsubscribe();
-      visitsSub.unsubscribe();
+  const calculateDartValue = (index: number) => {
+    return dartScores[index].score * dartScores[index].multiplier;
+  };
+
+  const getTotalScore = () => {
+    return dartScores.reduce((sum, dart, idx) => sum + calculateDartValue(idx), 0);
+  };
+
+  const getRemainingAfter = () => {
+    if (!match || !currentLeg) return 501;
+    const currentId = getCurrentPlayerId();
+    const currentScore = getPlayerScore(currentId || '');
+    return currentScore - getTotalScore();
+  };
+
+  const isBust = () => {
+    const remaining = getRemainingAfter();
+    return remaining < 0 || remaining === 1;
+  };
+
+  const isCheckout = () => {
+    const remaining = getRemainingAfter();
+    return remaining === 0 && dartScores.some(d => d.score > 0);
+  };
+
+  const getCheckoutSuggestion = (score: number) => {
+    // Simple checkout suggestions
+    const checkouts: Record<number, string> = {
+      170: 'T20 T20 DB',
+      167: 'T20 T19 DB',
+      164: 'T20 T18 DB',
+      161: 'T20 T17 DB',
+      160: 'T20 T20 D20',
+      136: 'T20 T20 D8',
+      120: 'T20 20 D20',
+      100: 'T20 D20',
+      80: 'T20 D20',
+      60: '20 D20',
+      40: 'D20',
+      32: 'D16',
+      24: 'D12',
+      16: 'D8',
+      8: 'D4',
+      4: 'D2',
+      2: 'D1',
     };
-  }, [matchId, currentLeg?.id]);
-
-  const handleNumberClick = (num: number) => {
-    if (!isMyTurn || !currentLeg || !user) return;
-
-    if (!dart1.score) {
-      setDart1({ score: num, multiplier: activeMultiplier });
-    } else if (!dart2.score) {
-      setDart2({ score: num, multiplier: activeMultiplier });
-    } else if (!dart3.score) {
-      setDart3({ score: num, multiplier: activeMultiplier });
-    }
+    return checkouts[score] || '';
   };
 
-  const handleSubmitVisit = async () => {
-    if (!isMyTurn || !currentLeg || !user || !match) return;
-
-    const totalScored = currentVisitTotal;
-    const remainingBefore = myRemaining || startingScore;
-    let remainingAfter = remainingBefore - totalScored;
-    let isBust = false;
-    let isCheckout = false;
-
-    if (remainingAfter < 0 || remainingAfter === 1) {
-      isBust = true;
-      remainingAfter = remainingBefore;
-    } else if (remainingAfter === 0) {
-      const lastDart = dart3.score ? dart3 : dart2.score ? dart2 : dart1;
-      if (lastDart.multiplier === 2) {
-        isCheckout = true;
-
-        const dartsUsed = (dart1.score ? 1 : 0) + (dart2.score ? 1 : 0) + (dart3.score ? 1 : 0);
-        const route = [
-          dart1.score ? `${dart1.multiplier === 1 ? '' : dart1.multiplier === 2 ? 'D' : 'T'}${dart1.score}` : '',
-          dart2.score ? `${dart2.multiplier === 1 ? '' : dart2.multiplier === 2 ? 'D' : 'T'}${dart2.score}` : '',
-          dart3.score ? `${dart3.multiplier === 1 ? '' : dart3.multiplier === 2 ? 'D' : 'T'}${dart3.score}` : '',
-        ].filter(Boolean).join(' ');
-
-        await gameService.recordCheckout(user.id, match.id, currentLeg.id, remainingBefore, dartsUsed, route);
-      } else {
-        isBust = true;
-        remainingAfter = remainingBefore;
-      }
+  const submitVisit = async () => {
+    if (!match || !currentLeg || !user) return;
+    
+    const currentId = getCurrentPlayerId();
+    if (currentId !== user.id) {
+      alert("Not your turn!");
+      return;
     }
+
+    const remainingBefore = getPlayerScore(user.id);
+    const totalScored = getTotalScore();
+    const remainingAfter = remainingBefore - totalScored;
+    const bust = isBust();
+    const checkout = isCheckout();
 
     try {
-      const dartsThrown = (dart1.score ? 1 : 0) + (dart2.score ? 1 : 0) + (dart3.score ? 1 : 0);
-      const visitNumber = visits.filter(v => v.player_id === user.id).length + 1;
+      // Save visit
+      await gameService.recordVisit({
+        leg_id: currentLeg.id,
+        match_id: match.id,
+        player_id: user.id,
+        visit_number: visits.filter(v => v.leg_id === currentLeg.id).length + 1,
+        dart1_score: dartScores[0].score || null,
+        dart1_multiplier: dartScores[0].multiplier,
+        dart2_score: dartScores[1].score || null,
+        dart2_multiplier: dartScores[1].multiplier,
+        dart3_score: dartScores[2].score || null,
+        dart3_multiplier: dartScores[2].multiplier,
+        total_scored: bust ? 0 : totalScored,
+        remaining_before: remainingBefore,
+        remaining_after: bust ? remainingBefore : remainingAfter,
+        is_bust: bust,
+        is_checkout: checkout,
+      });
 
-      await gameService.submitVisit(
-        currentLeg.id,
-        match.id,
-        user.id,
-        visitNumber,
-        dart1,
-        dart2,
-        dart3,
-        isBust ? 0 : totalScored,
-        remainingBefore,
-        remainingAfter,
-        isBust,
-        isCheckout
-      );
-
-      const newDartsThrown = (myDartsThrown || 0) + dartsThrown;
-      const newTotalScored = (myTotalScored || 0) + (isBust ? 0 : totalScored);
-
-      await gameService.updateLegScores(currentLeg.id, user.id, remainingAfter, newDartsThrown, newTotalScored);
-
-      if (isCheckout) {
-        await gameService.completeLeg(currentLeg.id, user.id);
-
-        const newMyLegs = (isPlayer1 ? match.player1_legs_won : match.player2_legs_won) + 1;
-
-        if (newMyLegs >= legsToWin) {
-          await gameService.completeMatch(match.id, user.id);
-          setShowResultDialog(true);
-        } else {
-          const newLeg = await gameService.createLeg(match.id, currentLeg.leg_number + 1, startingScore);
-          setCurrentLeg(newLeg);
-          setVisits([]);
-        }
-      } else {
-        const nextPlayerId = isPlayer1 ? match.player2_id : match.player1_id;
-        await gameService.switchTurn(match.id, nextPlayerId);
+      // If checkout, handle leg win
+      if (checkout) {
+        await handleLegWin(user.id);
       }
 
-      setDart1({ score: null, multiplier: 1 });
-      setDart2({ score: null, multiplier: 1 });
-      setDart3({ score: null, multiplier: 1 });
-      setActiveMultiplier(1);
-    } catch (error) {
-      console.error('Failed to submit visit:', error);
-      alert('Failed to submit visit');
+      // Reset dart input
+      setDartScores([
+        {score: 0, multiplier: 1},
+        {score: 0, multiplier: 1},
+        {score: 0, multiplier: 1}
+      ]);
+      setCurrentDart(1);
+
+      // Refresh data
+      await loadGameData();
+    } catch (err: any) {
+      alert('Error saving score: ' + err.message);
     }
   };
 
-  const handleClear = () => {
-    setDart1({ score: null, multiplier: 1 });
-    setDart2({ score: null, multiplier: 1 });
-    setDart3({ score: null, multiplier: 1 });
-  };
-
-  const handleUndo = () => {
-    if (dart3.score) {
-      setDart3({ score: null, multiplier: 1 });
-    } else if (dart2.score) {
-      setDart2({ score: null, multiplier: 1 });
-    } else if (dart1.score) {
-      setDart1({ score: null, multiplier: 1 });
-    }
-  };
-
-  const handleForfeit = async () => {
-    if (!match || !user) return;
-
+  const handleLegWin = async (winnerId: string) => {
+    if (!match || !currentLeg) return;
+    
     try {
-      const winnerId = isPlayer1 ? match.player2_id : match.player1_id;
-      await gameService.completeMatch(match.id, winnerId);
-      navigateTo('play');
-    } catch (error) {
-      console.error('Failed to forfeit:', error);
-      alert('Failed to forfeit match');
+      // Update leg winner
+      await gameService.updateLegWinner(currentLeg.id, winnerId);
+      
+      // Check if match is won
+      const isPlayer1 = winnerId === match.player1_id;
+      const newLegsWon = isPlayer1 
+        ? match.player1_legs_won + 1 
+        : match.player2_legs_won + 1;
+      
+      if (newLegsWon >= match.legs_to_win) {
+        // Match won
+        await gameService.endMatch(match.id, winnerId);
+        alert(`${isPlayer1 ? match.player1.display_name : match.player2.display_name} wins the match!`);
+        navigate('/dashboard');
+      } else {
+        // Create new leg
+        await gameService.createLeg(match.id, match.current_leg + 1);
+      }
+    } catch (err) {
+      console.error('Error handling leg win:', err);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading match...</p>
-        </div>
-      </div>
-    );
-  }
+  const setDartValue = (score: number, multiplier: number) => {
+    const newScores = [...dartScores];
+    newScores[currentDart - 1] = { score, multiplier };
+    setDartScores(newScores);
+    
+    if (currentDart < 3) {
+      setCurrentDart(currentDart + 1);
+    }
+  };
 
-  if (!match || !currentLeg) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-400 mb-4">Match not found</p>
-          <Button onClick={() => navigateTo('play')} className="bg-cyan-500 hover:bg-cyan-600">
-            Back to Lobby
-          </Button>
-        </div>
-      </div>
-    );
-  }
+  const undoDart = () => {
+    if (currentDart > 1) {
+      const newScores = [...dartScores];
+      newScores[currentDart - 2] = { score: 0, multiplier: 1 };
+      setDartScores(newScores);
+      setCurrentDart(currentDart - 1);
+    }
+  };
+
+  const clearDarts = () => {
+    setDartScores([
+      {score: 0, multiplier: 1},
+      {score: 0, multiplier: 1},
+      {score: 0, multiplier: 1}
+    ]);
+    setCurrentDart(1);
+  };
+
+  const editLastVisit = async () => {
+    const myVisits = visits.filter(v => v.player_id === user?.id);
+    if (myVisits.length === 0) return;
+    
+    const lastVisit = myVisits[myVisits.length - 1];
+    setEditingVisit(lastVisit.id);
+    
+    // Load values into input
+    setDartScores([
+      { score: lastVisit.dart1_score || 0, multiplier: lastVisit.dart1_multiplier },
+      { score: lastVisit.dart2_score || 0, multiplier: lastVisit.dart2_multiplier },
+      { score: lastVisit.dart3_score || 0, multiplier: lastVisit.dart3_multiplier },
+    ]);
+  };
+
+  const saveEditedVisit = async () => {
+    if (!editingVisit) return;
+    
+    try {
+      await gameService.updateVisit(editingVisit, {
+        dart1_score: dartScores[0].score || null,
+        dart1_multiplier: dartScores[0].multiplier,
+        dart2_score: dartScores[1].score || null,
+        dart2_multiplier: dartScores[1].multiplier,
+        dart3_score: dartScores[2].score || null,
+        dart2_multiplier: dartScores[2].multiplier,
+        total_scored: getTotalScore(),
+      });
+      
+      setEditingVisit(null);
+      clearDarts();
+      loadGameData();
+    } catch (err: any) {
+      alert('Error updating visit: ' + err.message);
+    }
+  };
+
+  if (loading) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">Loading game...</div>;
+  if (error) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center text-red-500">{error}</div>;
+  if (!match || !currentLeg) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">Game not found</div>;
+
+  const player1Score = getPlayerScore(match.player1_id);
+  const player2Score = getPlayerScore(match.player2_id);
+  const currentScore = user?.id === match.player1_id ? player1Score : player2Score;
+  const opponentScore = user?.id === match.player1_id ? player2Score : player1Score;
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
       {/* Header */}
-      <div className="bg-gray-800 border-b border-gray-700 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => setShowConfirmForfeit(true)}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20 transition"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Forfeit
-            </button>
-
-            <div className="text-center">
-              <h2 className="text-lg font-bold">
-                Best of {legsToWin * 2 - 1} Legs - {match.game_mode_id}
-              </h2>
-              <div className="flex items-center gap-4 text-sm text-gray-400 mt-1">
-                <span className="flex items-center gap-1">
-                  <Trophy className="w-4 h-4 text-cyan-400" />
-                  {match.player1.username} {match.player1_legs_won}
-                </span>
-                <span>-</span>
-                <span className="flex items-center gap-1">
-                  <Trophy className="w-4 h-4 text-blue-400" />
-                  {match.player2_legs_won} {match.player2.username}
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-sm text-gray-400">
-              <Users className="w-4 h-4" />
-              <span>Leg {currentLeg.leg_number}</span>
-            </div>
-          </div>
+      <div className="bg-gray-800 p-4 flex items-center justify-between">
+        <button onClick={() => navigate('/quick-match')} className="flex items-center gap-2 text-gray-400 hover:text-white">
+          <ChevronLeft className="w-5 h-5" />
+          Back
+        </button>
+        <div className="text-center">
+          <h1 className="font-bold">501 • Best of {match.legs_to_win * 2 - 1} • Double Out</h1>
+          <p className="text-sm text-gray-400">Leg {match.current_leg} of {match.legs_to_win * 2 - 1}</p>
+        </div>
+        <div className="flex gap-2">
+          <button className="p-2 bg-gray-700 rounded hover:bg-gray-600">
+            <Camera className="w-5 h-5" />
+          </button>
+          <button className="p-2 bg-gray-700 rounded hover:bg-gray-600">
+            <Mic className="w-5 h-5" />
+          </button>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Left Column - Scores */}
-          <div className="space-y-4">
-            {/* Player Scores */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* My Score */}
-              <Card className={`p-6 ${isMyTurn ? 'bg-cyan-900/30 border-2 border-cyan-500' : 'bg-gray-800 border-gray-700'}`}>
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-cyan-500 flex items-center justify-center font-bold">
-                      {(isPlayer1 ? match.player1.username : match.player2.username)?.[0] || 'Y'}
-                    </div>
-                    <span className="font-bold">{isPlayer1 ? match.player1.username : match.player2.username}</span>
-                  </div>
-                  {isMyTurn && (
-                    <div className="mb-2 text-xs text-cyan-400 font-bold">YOUR TURN</div>
-                  )}
-                  <div className="text-6xl font-bold text-white mb-2">{myRemaining || startingScore}</div>
-                  <div className="text-sm text-gray-400">Remaining</div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-gray-400">Avg</p>
-                      <p className="text-cyan-400 font-bold">{myAverage}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Darts</p>
-                      <p className="text-white font-bold">{myDartsThrown || 0}</p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
+      {/* Scoreboard */}
+      <div className="flex-1 flex flex-col lg:flex-row">
+        {/* Player 1 */}
+        <div className={`flex-1 p-6 flex flex-col items-center justify-center ${getCurrentPlayerId() === match.player1_id ? 'bg-cyan-900/20' : ''}`}>
+          <div className="w-20 h-20 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-full flex items-center justify-center text-3xl font-bold mb-4">
+            {match.player1.display_name?.[0] || 'P'}
+          </div>
+          <h2 className="text-xl font-bold mb-2">{match.player1.display_name}</h2>
+          <div className="text-6xl font-bold text-cyan-400 mb-2">{player1Score}</div>
+          <div className="text-sm text-gray-400">Legs: {match.player1_legs_won}</div>
+          {getCurrentPlayerId() === match.player1_id && (
+            <div className="mt-4 px-4 py-2 bg-cyan-600 rounded-full text-sm font-bold animate-pulse">
+              THROWING
+            </div>
+          )}
+        </div>
 
-              {/* Opponent Score */}
-              <Card className={`p-6 ${!isMyTurn ? 'bg-blue-900/30 border-2 border-blue-500' : 'bg-gray-800 border-gray-700'}`}>
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold">
-                      {(isPlayer1 ? match.player2.username : match.player1.username)?.[0] || 'O'}
-                    </div>
-                    <span className="font-bold">{isPlayer1 ? match.player2.username : match.player1.username}</span>
-                  </div>
-                  {!isMyTurn && (
-                    <div className="mb-2 text-xs text-blue-400 font-bold">THEIR TURN</div>
-                  )}
-                  <div className="text-6xl font-bold text-white mb-2">{opponentRemaining || startingScore}</div>
-                  <div className="text-sm text-gray-400">Remaining</div>
-                  <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <p className="text-gray-400">Avg</p>
-                      <p className="text-blue-400 font-bold">{opponentAverage}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-400">Darts</p>
-                      <p className="text-white font-bold">{opponentDartsThrown || 0}</p>
-                    </div>
-                  </div>
-                </div>
-              </Card>
+        {/* Center - Stats & Checkout */}
+        <div className="lg:w-80 bg-gray-800 p-6 flex flex-col items-center justify-center border-x border-gray-700">
+          <div className="text-center mb-6">
+            <p className="text-gray-400 text-sm mb-1">Checkout</p>
+            <p className="text-2xl font-bold text-cyan-400">
+              {getCheckoutSuggestion(currentScore) || '-'}
+            </p>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4 w-full">
+            <div className="text-center">
+              <p className="text-gray-400 text-xs">Average</p>
+              <p className="text-xl font-bold">{(visits.filter(v => v.player_id === user?.id).reduce((sum, v) => sum + v.total_scored, 0) / Math.max(visits.filter(v => v.player_id === user?.id).length, 1) / 3).toFixed(1)}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-gray-400 text-xs">Darts</p>
+              <p className="text-xl font-bold">{visits.filter(v => v.player_id === user?.id).length * 3}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Player 2 */}
+        <div className={`flex-1 p-6 flex flex-col items-center justify-center ${getCurrentPlayerId() === match.player2_id ? 'bg-cyan-900/20' : ''}`}>
+          <div className="w-20 h-20 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center text-3xl font-bold mb-4">
+            {match.player2.display_name?.[0] || 'P'}
+          </div>
+          <h2 className="text-xl font-bold mb-2">{match.player2.display_name}</h2>
+          <div className="text-6xl font-bold text-cyan-400 mb-2">{player2Score}</div>
+          <div className="text-sm text-gray-400">Legs: {match.player2_legs_won}</div>
+          {getCurrentPlayerId() === match.player2_id && (
+            <div className="mt-4 px-4 py-2 bg-cyan-600 rounded-full text-sm font-bold animate-pulse">
+              THROWING
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Visit History */}
+      <div className="bg-gray-800 border-t border-gray-700 p-4">
+        <h3 className="text-sm font-bold text-gray-400 mb-2">VISIT HISTORY</h3>
+        <div className="flex gap-4 overflow-x-auto pb-2">
+          {visits.slice(-10).map((visit, idx) => (
+            <div key={visit.id} className={`flex-shrink-0 p-3 rounded ${visit.player_id === user?.id ? 'bg-cyan-900/30' : 'bg-gray-700'}`}>
+              <div className="text-xs text-gray-400 mb-1">
+                {visit.player_id === match.player1_id ? match.player1.display_name : match.player2.display_name}
+              </div>
+              <div className="font-bold text-lg">
+                {visit.dart1_score > 0 && (
+                  <span className={visit.dart1_multiplier === 3 ? 'text-red-400' : visit.dart1_multiplier === 2 ? 'text-green-400' : ''}>
+                    {visit.dart1_multiplier === 3 ? 'T' : visit.dart1_multiplier === 2 ? 'D' : ''}{visit.dart1_score}
+                  </span>
+                )}
+                {' '}
+                {visit.dart2_score > 0 && (
+                  <span className={visit.dart2_multiplier === 3 ? 'text-red-400' : visit.dart2_multiplier === 2 ? 'text-green-400' : ''}>
+                    {visit.dart2_multiplier === 3 ? 'T' : visit.dart2_multiplier === 2 ? 'D' : ''}{visit.dart2_score}
+                  </span>
+                )}
+                {' '}
+                {visit.dart3_score > 0 && (
+                  <span className={visit.dart3_multiplier === 3 ? 'text-red-400' : visit.dart3_multiplier === 2 ? 'text-green-400' : ''}>
+                    {visit.dart3_multiplier === 3 ? 'T' : visit.dart3_multiplier === 2 ? 'D' : ''}{visit.dart3_score}
+                  </span>
+                )}
+              </div>
+              <div className="text-xs text-cyan-400 mt-1">{visit.total_scored} pts</div>
+              {visit.is_checkout && <div className="text-xs text-green-500 font-bold">CHECKOUT!</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Score Input (only show if it's my turn) */}
+      {isMyTurn() && (
+        <div className="bg-gray-800 border-t border-gray-700 p-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-lg">
+                {editingVisit ? 'EDIT VISIT' : 'ENTER SCORE'}
+              </h3>
+              <div className="flex gap-2">
+                <span className="text-gray-400">Dart {currentDart} of 3</span>
+                <span className="text-cyan-400 font-bold">Total: {getTotalScore()}</span>
+                <span className={isBust() ? 'text-red-500 font-bold' : 'text-green-400 font-bold'}>
+                  Remaining: {getRemainingAfter()}
+                </span>
+              </div>
             </div>
 
-            {/* Checkout Suggestion */}
-            {checkoutSuggestion && isMyTurn && (
-              <Card className="bg-cyan-500/10 border-cyan-500/30 p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Target className="w-5 h-5 text-cyan-400" />
-                  <span className="text-cyan-400 font-bold">CHECKOUT</span>
+            {/* Current Darts Display */}
+            <div className="flex gap-4 mb-6 justify-center">
+              {[1, 2, 3].map((dartNum) => (
+                <div 
+                  key={dartNum}
+                  className={`w-24 h-24 rounded-lg border-2 flex flex-col items-center justify-center ${
+                    currentDart === dartNum 
+                      ? 'border-cyan-500 bg-cyan-900/20' 
+                      : 'border-gray-600 bg-gray-700'
+                  }`}
+                >
+                  <span className="text-xs text-gray-400">Dart {dartNum}</span>
+                  <span className="text-2xl font-bold">
+                    {dartScores[dartNum - 1].score > 0 ? (
+                      <>
+                        {dartScores[dartNum - 1].multiplier === 3 ? 'T' : 
+                         dartScores[dartNum - 1].multiplier === 2 ? 'D' : ''}
+                        {dartScores[dartNum - 1].score}
+                      </>
+                    ) : (
+                      '-'
+                    )}
+                  </span>
                 </div>
-                <p className="text-white text-lg font-bold">{checkoutSuggestion}</p>
-              </Card>
-            )}
+              ))}
+            </div>
 
-            {/* Current Visit */}
-            <Card className="bg-gray-800 border-gray-700 p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-gray-400">CURRENT VISIT</span>
-                <span className="text-cyan-400 font-bold text-lg">{currentVisitTotal}</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mb-3">
-                <div className="bg-gray-900 rounded-lg p-4 text-center">
-                  <span className="text-2xl font-bold">
-                    {dart1.score ? `${dart1.multiplier === 2 ? 'D' : dart1.multiplier === 3 ? 'T' : ''}${dart1.score}` : '-'}
-                  </span>
-                </div>
-                <div className="bg-gray-900 rounded-lg p-4 text-center">
-                  <span className="text-2xl font-bold">
-                    {dart2.score ? `${dart2.multiplier === 2 ? 'D' : dart2.multiplier === 3 ? 'T' : ''}${dart2.score}` : '-'}
-                  </span>
-                </div>
-                <div className="bg-gray-900 rounded-lg p-4 text-center">
-                  <span className="text-2xl font-bold">
-                    {dart3.score ? `${dart3.multiplier === 2 ? 'D' : dart3.multiplier === 3 ? 'T' : ''}${dart3.score}` : '-'}
-                  </span>
-                </div>
-              </div>
-              <div className="flex gap-2">
+            {/* Numpad */}
+            <div className="grid grid-cols-7 gap-2 mb-4">
+              {[20, 19, 18, 17, 16, 15, 14].map((num) => (
                 <button
-                  onClick={handleUndo}
-                  disabled={!isMyTurn}
-                  className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition disabled:opacity-50 flex items-center justify-center gap-2"
+                  key={num}
+                  onClick={() => setDartValue(num, 1)}
+                  className="bg-gray-700 hover:bg-gray-600 p-3 rounded font-bold transition"
                 >
-                  <RotateCcw className="w-4 h-4" />
-                  Undo
+                  {num}
                 </button>
+              ))}
+              {[13, 12, 11, 10, 9, 8, 7].map((num) => (
                 <button
-                  onClick={handleClear}
-                  disabled={!isMyTurn}
-                  className="flex-1 py-2 rounded-lg bg-gray-700 hover:bg-gray-600 transition disabled:opacity-50"
+                  key={num}
+                  onClick={() => setDartValue(num, 1)}
+                  className="bg-gray-700 hover:bg-gray-600 p-3 rounded font-bold transition"
                 >
-                  Clear
+                  {num}
                 </button>
+              ))}
+              {[6, 5, 4, 3, 2, 1].map((num) => (
                 <button
-                  onClick={handleSubmitVisit}
-                  disabled={!isMyTurn || !dart1.score}
-                  className="flex-1 py-2 rounded-lg bg-cyan-500 hover:bg-cyan-600 transition disabled:opacity-50 font-bold"
+                  key={num}
+                  onClick={() => setDartValue(num, 1)}
+                  className="bg-gray-700 hover:bg-gray-600 p-3 rounded font-bold transition"
                 >
+                  {num}
+                </button>
+              ))}
+              <button
+                onClick={() => setDartValue(25, 1)}
+                className="bg-gray-700 hover:bg-gray-600 p-3 rounded font-bold transition"
+              >
+                25
+              </button>
+              <button
+                onClick={() => setDartValue(50, 1)}
+                className="bg-gray-700 hover:bg-gray-600 p-3 rounded font-bold transition"
+              >
+                50
+              </button>
+              <button
+                onClick={() => setDartValue(0, 1)}
+                className="bg-gray-700 hover:bg-gray-600 p-3 rounded font-bold transition"
+              >
+                Miss
+              </button>
+            </div>
+
+            {/* Multipliers */}
+            <div className="flex gap-2 mb-4 justify-center">
+              <button
+                onClick={() => {
+                  const newScores = [...dartScores];
+                  newScores[currentDart - 1].multiplier = 1;
+                  setDartScores(newScores);
+                }}
+                className={`px-6 py-2 rounded font-bold ${dartScores[currentDart - 1].multiplier === 1 ? 'bg-cyan-600' : 'bg-gray-700'}`}
+              >
+                Single
+              </button>
+              <button
+                onClick={() => {
+                  const newScores = [...dartScores];
+                  newScores[currentDart - 1].multiplier = 2;
+                  setDartScores(newScores);
+                }}
+                className={`px-6 py-2 rounded font-bold ${dartScores[currentDart - 1].multiplier === 2 ? 'bg-cyan-600' : 'bg-gray-700'}`}
+              >
+                Double
+              </button>
+              <button
+                onClick={() => {
+                  const newScores = [...dartScores];
+                  newScores[currentDart - 1].multiplier = 3;
+                  setDartScores(newScores);
+                }}
+                className={`px-6 py-2 rounded font-bold ${dartScores[currentDart - 1].multiplier === 3 ? 'bg-cyan-600' : 'bg-gray-700'}`}
+              >
+                Triple
+              </button>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 justify-center">
+              <button
+                onClick={undoDart}
+                className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded font-bold flex items-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Undo
+              </button>
+              <button
+                onClick={clearDarts}
+                className="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded font-bold flex items-center gap-2"
+              >
+                <X className="w-4 h-4" />
+                Clear
+              </button>
+              
+              {!editingVisit && (
+                <button
+                  onClick={editLastVisit}
+                  className="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded font-bold flex items-center gap-2"
+                >
+                  <Edit2 className="w-4 h-4" />
+                  Edit Last
+                </button>
+              )}
+              
+              {editingVisit ? (
+                <button
+                  onClick={saveEditedVisit}
+                  className="bg-green-600 hover:bg-green-700 px-6 py-2 rounded font-bold flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
+                  Save Edit
+                </button>
+              ) : (
+                <button
+                  onClick={submitVisit}
+                  disabled={dartScores.every(d => d.score === 0)}
+                  className="bg-cyan-600 hover:bg-cyan-700 px-6 py-2 rounded font-bold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  <Check className="w-4 h-4" />
                   Submit
                 </button>
-              </div>
-            </Card>
-
-            {/* Visit History */}
-            <Card className="bg-gray-800 border-gray-700 p-4 max-h-60 overflow-y-auto">
-              <h3 className="text-sm text-gray-400 mb-3 font-bold">VISIT HISTORY</h3>
-              {myVisits.length === 0 ? (
-                <p className="text-gray-500 text-sm text-center py-4">No visits yet</p>
-              ) : (
-                <div className="space-y-2">
-                  {myVisits.map((visit, idx) => (
-                    <div key={visit.id} className="flex items-center justify-between bg-gray-900 rounded p-2">
-                      <span className="text-gray-400 text-sm">Visit {idx + 1}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-white font-mono">
-                          {visit.dart1_score ? `${visit.dart1_multiplier === 2 ? 'D' : visit.dart1_multiplier === 3 ? 'T' : ''}${visit.dart1_score}` : '-'}
-                          {visit.dart2_score ? ` ${visit.dart2_multiplier === 2 ? 'D' : visit.dart2_multiplier === 3 ? 'T' : ''}${visit.dart2_score}` : ''}
-                          {visit.dart3_score ? ` ${visit.dart3_multiplier === 2 ? 'D' : visit.dart3_multiplier === 3 ? 'T' : ''}${visit.dart3_score}` : ''}
-                        </span>
-                        <span className={`font-bold ${visit.is_bust ? 'text-red-400' : visit.is_checkout ? 'text-green-400' : 'text-cyan-400'}`}>
-                          {visit.is_bust ? 'BUST' : visit.is_checkout ? 'CHECKOUT!' : visit.total_scored}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
               )}
-            </Card>
-          </div>
-
-          {/* Right Column - Input */}
-          <div className="space-y-4">
-            <Card className="bg-gray-800 border-gray-700 p-6">
-              <h3 className="text-lg font-bold mb-4">SCORE INPUT</h3>
-
-              {/* Multipliers */}
-              <div className="grid grid-cols-3 gap-2 mb-4">
-                <button
-                  onClick={() => setActiveMultiplier(1)}
-                  disabled={!isMyTurn}
-                  className={`py-3 rounded-lg font-bold transition ${
-                    activeMultiplier === 1 ? 'bg-gray-700 text-white' : 'bg-gray-900 text-gray-400'
-                  } disabled:opacity-50`}
-                >
-                  Single
-                </button>
-                <button
-                  onClick={() => setActiveMultiplier(2)}
-                  disabled={!isMyTurn}
-                  className={`py-3 rounded-lg font-bold transition ${
-                    activeMultiplier === 2 ? 'bg-green-600 text-white' : 'bg-gray-900 text-gray-400'
-                  } disabled:opacity-50`}
-                >
-                  Double
-                </button>
-                <button
-                  onClick={() => setActiveMultiplier(3)}
-                  disabled={!isMyTurn}
-                  className={`py-3 rounded-lg font-bold transition ${
-                    activeMultiplier === 3 ? 'bg-red-600 text-white' : 'bg-gray-900 text-gray-400'
-                  } disabled:opacity-50`}
-                >
-                  Treble
-                </button>
-              </div>
-
-              {/* Number Grid */}
-              <div className="grid grid-cols-5 gap-2">
-                {[...Array(20)].map((_, i) => {
-                  const num = i + 1;
-                  return (
-                    <button
-                      key={num}
-                      onClick={() => handleNumberClick(num)}
-                      disabled={!isMyTurn || !!dart3.score}
-                      className="aspect-square bg-gray-900 hover:bg-gray-700 rounded-lg font-bold text-lg transition disabled:opacity-30"
-                    >
-                      {num}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Bottom Row */}
-              <div className="grid grid-cols-3 gap-2 mt-4">
-                <button
-                  onClick={() => handleNumberClick(25)}
-                  disabled={!isMyTurn || !!dart3.score}
-                  className="py-3 bg-gray-900 hover:bg-gray-700 rounded-lg font-bold transition disabled:opacity-30"
-                >
-                  25
-                </button>
-                <button
-                  onClick={() => handleNumberClick(0)}
-                  disabled={!isMyTurn || !!dart3.score}
-                  className="py-3 bg-red-500/20 hover:bg-red-500/30 text-red-400 rounded-lg font-bold transition disabled:opacity-30"
-                >
-                  Miss
-                </button>
-                <button
-                  onClick={() => handleNumberClick(25)}
-                  disabled={!isMyTurn || !!dart3.score || activeMultiplier !== 2}
-                  className="py-3 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-400 rounded-lg font-bold transition disabled:opacity-30"
-                >
-                  Bull
-                </button>
-              </div>
-            </Card>
-
-            {!isMyTurn && (
-              <Card className="bg-blue-500/10 border-blue-500/30 p-4 text-center">
-                <Clock className="w-8 h-8 text-blue-400 mx-auto mb-2 animate-pulse" />
-                <p className="text-blue-400 font-bold">Waiting for opponent...</p>
-              </Card>
-            )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Forfeit Confirmation Dialog */}
-      <Dialog open={showConfirmForfeit} onOpenChange={setShowConfirmForfeit}>
-        <DialogContent className="bg-gray-800 border-gray-700 text-white">
-          <DialogHeader>
-            <DialogTitle>Forfeit Match?</DialogTitle>
-          </DialogHeader>
-          <p className="text-gray-400 mb-4">Are you sure you want to forfeit? Your opponent will be declared the winner.</p>
-          <div className="flex gap-3">
-            <Button
-              onClick={() => setShowConfirmForfeit(false)}
-              className="flex-1 bg-gray-700 hover:bg-gray-600"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                setShowConfirmForfeit(false);
-                handleForfeit();
-              }}
-              className="flex-1 bg-red-600 hover:bg-red-700"
-            >
-              Forfeit
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Result Dialog */}
-      <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
-        <DialogContent className="bg-gray-800 border-gray-700 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold text-center">Match Complete!</DialogTitle>
-          </DialogHeader>
-          <div className="text-center py-6">
-            <div className="w-20 h-20 rounded-full bg-cyan-500/20 flex items-center justify-center mx-auto mb-4">
-              <Trophy className="w-10 h-10 text-cyan-400" />
-            </div>
-            <p className="text-xl font-semibold text-white mb-2">You Won!</p>
-            <p className="text-gray-400 mb-6">
-              {match?.player1_legs_won} - {match?.player2_legs_won}
-            </p>
-
-            <div className="grid grid-cols-2 gap-4 mb-6">
-              <div className="bg-gray-900 rounded-lg p-3">
-                <p className="text-gray-400 text-sm">Your Average</p>
-                <p className="text-cyan-400 font-bold text-xl">{myAverage}</p>
-              </div>
-              <div className="bg-gray-900 rounded-lg p-3">
-                <p className="text-gray-400 text-sm">Darts Thrown</p>
-                <p className="text-white font-bold text-xl">{myDartsThrown}</p>
-              </div>
-            </div>
-
-            <Button
-              onClick={() => navigateTo('play')}
-              className="w-full bg-cyan-500 hover:bg-cyan-600"
-            >
-              Back to Lobby
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Waiting for opponent message */}
+      {!isMyTurn() && (
+        <div className="bg-gray-800 border-t border-gray-700 p-6 text-center">
+          <p className="text-gray-400">Waiting for {getCurrentPlayerName()} to throw...</p>
+        </div>
+      )}
     </div>
   );
 }
