@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Visit } from '@/types/database';
+import type { Match, Leg, Visit } from '@/types/database';
 
 export const gameService = {
   async getMatchWithDetails(matchId: string) {
@@ -14,31 +14,24 @@ export const gameService = {
   },
 
   async getCurrentLeg(matchId: string) {
-    const { data, error } = await supabase
+    // First, try to get existing open leg
+    const { data: existingLegs, error: selectError } = await supabase
       .from('legs')
       .select('*')
       .eq('match_id', matchId)
       .is('winner_id', null)
       .order('leg_number', { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
 
-    if (error) {
-      // No current leg, create one
-      return this.createLeg(matchId, 1);
+    if (selectError) throw selectError;
+    
+    // If leg exists, return it
+    if (existingLegs && existingLegs.length > 0) {
+      return existingLegs[0];
     }
-    return data;
-  },
 
-  async getLegVisits(legId: string) {
-    const { data, error } = await supabase
-      .from('visits')
-      .select('*')
-      .eq('leg_id', legId)
-      .order('visit_number', { ascending: true });
-
-    if (error) throw error;
-    return data || [];
+    // No leg exists, create one (but check again to avoid race condition)
+    return this.createLeg(matchId, 1);
   },
 
   async createLeg(matchId: string, legNumber: number) {
@@ -50,6 +43,7 @@ export const gameService = {
 
     const startingScore = match?.game_mode_id === '301' ? 301 : 501;
 
+    // Use RPC or handle conflict gracefully
     const { data, error } = await supabase
       .from('legs')
       .insert({
@@ -63,6 +57,17 @@ export const gameService = {
       .select()
       .single();
 
+    // If duplicate error, just fetch the existing leg
+    if (error && error.code === '23505') {
+      const { data: existingLeg } = await supabase
+        .from('legs')
+        .select('*')
+        .eq('match_id', matchId)
+        .eq('leg_number', legNumber)
+        .single();
+      return existingLeg;
+    }
+
     if (error) throw error;
     
     // Update match current_leg
@@ -72,6 +77,17 @@ export const gameService = {
       .eq('id', matchId);
 
     return data;
+  },
+
+  async getLegVisits(legId: string) {
+    const { data, error } = await supabase
+      .from('visits')
+      .select('*')
+      .eq('leg_id', legId)
+      .order('visit_number', { ascending: true });
+
+    if (error) throw error;
+    return data || [];
   },
 
   async recordVisit(visit: Partial<Visit>) {
@@ -121,4 +137,29 @@ export const gameService = {
 
     if (error) throw error;
   },
+
+  // Subscribe to match updates
+  subscribeToMatch(matchId: string, callback: (payload: any) => void) {
+    return supabase
+      .channel(`match:${matchId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'matches',
+        filter: `id=eq.${matchId}`,
+      }, callback)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'legs',
+        filter: `match_id=eq.${matchId}`,
+      }, callback)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'visits',
+        filter: `match_id=eq.${matchId}`,
+      }, callback)
+      .subscribe();
+  }
 };
