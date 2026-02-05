@@ -124,7 +124,7 @@ export function QuickMatchLobby() {
           <Card className="bg-gray-800 border-gray-700 p-4 mb-8">
             <p className="text-sm text-gray-400 mb-2 text-center">Game Mode</p>
             <p className="font-bold text-lg text-white text-center">
-              {match.game_type || quickPlaySettings.mode} • Best of {quickPlaySettings.legs}
+              {match.game_mode_id || quickPlaySettings.mode} • Best of {quickPlaySettings.legs}
               {quickPlaySettings.doubleOut === 'on' && ' • Double Out'}
             </p>
           </Card>

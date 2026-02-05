@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { quickMatchService } from '@/services/quickMatchService';
-import { useAuthStore, useNavigationStore } from '@/store';
+import { useAuthStore } from '@/store';
 import type { Match, Profile } from '@/types/database';
 import { Clock, Trophy, Plus, X, Crown } from 'lucide-react';
 
@@ -9,7 +10,7 @@ interface LobbyWithPlayer extends Match {
 }
 
 export function QuickMatchBrowser() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const [lobbies, setLobbies] = useState<LobbyWithPlayer[]>([]);
   const [myLobby, setMyLobby] = useState<(Match & { player1: Profile }) | null>(null);
@@ -79,7 +80,7 @@ export function QuickMatchBrowser() {
       // If someone joined, redirect both players to game
       if (match.status === 'in_progress' && match.player2_id) {
         setMyLobby(null);
-        navigateTo('game', { matchId });
+        navigate(`/game/${matchId}`);
       }
     } catch (error) {
       console.error('Failed to check lobby:', error);
@@ -107,7 +108,7 @@ export function QuickMatchBrowser() {
       setLoading(true);
       await quickMatchService.joinLobby(matchId);
       // Successfully joined, navigate to game immediately
-      navigateTo('game', { matchId });
+      navigate(`/game/${matchId}`);
     } catch (error: any) {
       alert(error.message || 'Failed to join lobby');
       loadLobbies(); // Refresh to remove taken lobby
@@ -140,7 +141,7 @@ export function QuickMatchBrowser() {
   const formatGameMode = (match: Match) => {
     const legs = match.legs_to_win;
     const totalLegs = legs * 2 - 1;
-    return `BEST OF ${totalLegs} LEGS - ${match.game_type}`;
+    return `BEST OF ${totalLegs} LEGS - ${match.game_mode_id}`;
   };
 
   return (
@@ -151,7 +152,7 @@ export function QuickMatchBrowser() {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">PLAY ONLINE</h1>
             <button
-              onClick={() => navigateTo('play')}
+              onClick={() => navigate('/play')}
               className="text-gray-400 hover:text-white"
             >
               Back
