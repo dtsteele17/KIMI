@@ -1,16 +1,15 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { quickMatchService } from '@/services/quickMatchService';
-import { useAuthStore } from '@/store';
+import { useAuthStore, useNavigationStore } from '@/store';
 import type { Match, Profile } from '@/types/database';
-import { Clock, Users, Trophy, Plus, X, Crown } from 'lucide-react';
+import { Clock, Trophy, Plus, X, Crown } from 'lucide-react';
 
 interface LobbyWithPlayer extends Match {
   player1: Profile;
 }
 
 export function QuickMatchBrowser() {
-  const navigate = useNavigate();
+  const { navigateTo } = useNavigationStore();
   const { user } = useAuthStore();
   const [lobbies, setLobbies] = useState<LobbyWithPlayer[]>([]);
   const [myLobby, setMyLobby] = useState<(Match & { player1: Profile }) | null>(null);
@@ -79,7 +78,7 @@ export function QuickMatchBrowser() {
       const match = await quickMatchService.getMatch(matchId);
       // If someone joined, redirect to game
       if (match.status === 'in_progress' && match.player2_id) {
-        navigate(`/game/${matchId}`);
+        navigateTo('game');
       }
     } catch (error) {
       console.error('Failed to check lobby:', error);
@@ -107,7 +106,7 @@ export function QuickMatchBrowser() {
       setLoading(true);
       await quickMatchService.joinLobby(matchId);
       // Successfully joined, go to game
-      navigate(`/game/${matchId}`);
+      navigateTo('game');
     } catch (error: any) {
       alert(error.message);
       loadLobbies(); // Refresh to remove taken lobby
@@ -136,7 +135,7 @@ export function QuickMatchBrowser() {
   const formatGameMode = (match: Match) => {
     const legs = match.legs_to_win;
     const totalLegs = legs * 2 - 1;
-    return `BEST OF ${totalLegs} LEGS - ${match.game_mode_id}`;
+    return `BEST OF ${totalLegs} LEGS - ${match.game_type}`;
   };
 
   return (
@@ -146,8 +145,8 @@ export function QuickMatchBrowser() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold">PLAY ONLINE</h1>
-            <button 
-              onClick={() => navigate('/play')}
+            <button
+              onClick={() => navigateTo('play')}
               className="text-gray-400 hover:text-white"
             >
               Back
@@ -221,14 +220,11 @@ export function QuickMatchBrowser() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-full flex items-center justify-center text-2xl font-bold">
-                    {myLobby.player1.display_name?.[0] || 'You'}
+                    {myLobby.player1.username?.[0] || 'You'}
                   </div>
                   <div>
-                    <p className="font-bold text-lg">{myLobby.player1.display_name || 'You'}</p>
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <span className="text-yellow-500">★</span>
-                      <span>{myLobby.player1.elo || 1200} ELO</span>
-                    </div>
+                    <p className="font-bold text-lg">{myLobby.player1.username || 'You'}</p>
+                    <p className="text-sm text-gray-400">Host</p>
                   </div>
                 </div>
 
@@ -291,16 +287,11 @@ export function QuickMatchBrowser() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-xl font-bold">
-                      {lobby.player1.display_name?.[0] || 'P'}
+                      {lobby.player1.username?.[0] || 'P'}
                     </div>
                     <div>
-                      <p className="font-bold">{lobby.player1.display_name || 'Player'}</p>
-                      <div className="flex items-center gap-2 text-sm text-gray-400">
-                        <span className="text-yellow-500">★</span>
-                        <span>{lobby.player1.elo || 1200}</span>
-                        <span className="text-gray-600">•</span>
-                        <span className="text-green-500">{lobby.player1.wins || 0}W</span>
-                      </div>
+                      <p className="font-bold">{lobby.player1.username || 'Player'}</p>
+                      <p className="text-sm text-gray-400">Waiting for opponent</p>
                     </div>
                   </div>
 
