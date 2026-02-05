@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { quickMatchService } from '@/services/quickMatchService';
-import { useNavigationStore } from '@/store';
+import { useNavigationStore, useGameStore } from '@/store';
 import type { Match, Profile } from '@/types/database';
-import { Clock, Users, Trophy, Plus, Filter } from 'lucide-react';
+import { Clock, Trophy, Plus, Filter } from 'lucide-react';
 import { Navigation } from '@/components/Navigation';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import type { GameMode, LegsOption, DoubleOut } from '@/types';
 
 interface LobbyWithPlayer extends Match {
   player1: Profile;
@@ -13,9 +15,14 @@ interface LobbyWithPlayer extends Match {
 
 export function QuickMatchBrowser() {
   const { navigateTo } = useNavigationStore();
+  const { setQuickPlaySettings } = useGameStore();
   const [lobbies, setLobbies] = useState<LobbyWithPlayer[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'lobby' | 'live'>('lobby');
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [gameMode, setGameMode] = useState<GameMode>('501');
+  const [bestOf, setBestOf] = useState<LegsOption>(3);
+  const [doubleOut, setDoubleOut] = useState<DoubleOut>('on');
 
   useEffect(() => {
     loadLobbies();
@@ -45,6 +52,16 @@ export function QuickMatchBrowser() {
   };
 
   const handleCreateLobby = () => {
+    setShowSettingsModal(true);
+  };
+
+  const handleStartCreateLobby = () => {
+    setShowSettingsModal(false);
+    setQuickPlaySettings({
+      mode: gameMode,
+      legs: bestOf,
+      doubleOut: doubleOut,
+    });
     navigateTo('lobby-create');
   };
 
@@ -118,39 +135,6 @@ export function QuickMatchBrowser() {
               <p className="text-2xl font-bold text-blue-400">{Math.floor(lobbies.length * 1.5) + 12}</p>
             </Card>
           </div>
-
-          <Card className="bg-gradient-to-br from-orange-900/40 to-red-900/30 border-orange-500/30 p-6 mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-3">
-                <Users className="w-6 h-6 text-orange-400" />
-                <h2 className="text-xl font-bold text-white">GLOBAL LOBBY</h2>
-              </div>
-              <Filter className="w-5 h-5 text-orange-400 cursor-pointer hover:text-orange-300" />
-            </div>
-
-            <div className="flex gap-8 mb-4">
-              <div>
-                <p className="text-4xl font-bold text-white">{lobbies.length}</p>
-                <p className="text-sm text-orange-200/80">Games in lobby</p>
-              </div>
-              <div>
-                <p className="text-4xl font-bold text-white">{Math.floor(lobbies.length * 0.7) + 8}</p>
-                <p className="text-sm text-orange-200/80">Live games</p>
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button className="bg-gray-900 hover:bg-gray-800 text-white">
-                Go to lobby
-              </Button>
-              <Button
-                variant="outline"
-                className="border-2 border-white text-white hover:bg-white hover:text-orange-500"
-              >
-                Live games
-              </Button>
-            </div>
-          </Card>
 
           <Card className="bg-[#111827] border-gray-800 p-1 mb-6 flex">
             <button
@@ -260,6 +244,95 @@ export function QuickMatchBrowser() {
           </div>
         </div>
       </div>
+
+      <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+        <DialogContent className="bg-[#111827] border-gray-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold">Game Settings</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Game Mode</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setGameMode('301')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                    gameMode === '301'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  301
+                </button>
+                <button
+                  onClick={() => setGameMode('501')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                    gameMode === '501'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  501
+                </button>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Best Of</label>
+              <select
+                value={bestOf}
+                onChange={(e) => setBestOf(parseInt(e.target.value) as LegsOption)}
+                className="w-full py-2 px-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-emerald-500"
+              >
+                <option value={1}>Best of 1</option>
+                <option value={3}>Best of 3</option>
+                <option value={5}>Best of 5</option>
+                <option value={7}>Best of 7</option>
+                <option value={9}>Best of 9</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">Double Out</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setDoubleOut('on')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                    doubleOut === 'on'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  ON
+                </button>
+                <button
+                  onClick={() => setDoubleOut('off')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
+                    doubleOut === 'off'
+                      ? 'bg-emerald-500 text-white'
+                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                  }`}
+                >
+                  OFF
+                </button>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                onClick={() => setShowSettingsModal(false)}
+                variant="outline"
+                className="flex-1 border-gray-700 text-gray-400 hover:text-white"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleStartCreateLobby}
+                className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+              >
+                Create Lobby
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

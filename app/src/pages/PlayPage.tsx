@@ -8,15 +8,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 
 export function PlayPage() {
   const { navigateTo } = useNavigationStore();
-  const { 
-    quickPlaySettings, 
-    trainingSettings, 
-    setQuickPlaySettings, 
+  const {
+    trainingSettings,
     setTrainingSettings,
-    startSearching 
+    startSearching
   } = useGameStore();
   
-  const [showQuickMatchDialog, setShowQuickMatchDialog] = useState(false);
   const [showPrivateMatchDialog, setShowPrivateMatchDialog] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -32,11 +29,6 @@ export function PlayPage() {
   };
 
   const handleQuickMatch = () => {
-    setShowQuickMatchDialog(true);
-  };
-
-  const startQuickMatch = () => {
-    setShowQuickMatchDialog(false);
     navigateTo('quick-match');
   };
 
@@ -224,73 +216,6 @@ export function PlayPage() {
           </div>
         </div>
       </div>
-
-      {/* Quick Match Dialog */}
-      <Dialog open={showQuickMatchDialog} onOpenChange={setShowQuickMatchDialog}>
-        <DialogContent className="bg-[#111827] border-gray-800 text-white max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-bold">Quick Match Settings</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Game Mode</label>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setQuickPlaySettings({ mode: '301' })}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                    quickPlaySettings.mode === '301'
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                  }`}
-                >
-                  301
-                </button>
-                <button
-                  onClick={() => setQuickPlaySettings({ mode: '501' })}
-                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                    quickPlaySettings.mode === '501'
-                      ? 'bg-emerald-500 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                  }`}
-                >
-                  501
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Best Of</label>
-              <select
-                value={quickPlaySettings.legs}
-                onChange={(e) => setQuickPlaySettings({ legs: parseInt(e.target.value) as any })}
-                className="w-full py-2 px-4 rounded-lg bg-gray-800 text-white border border-gray-700 focus:outline-none focus:border-emerald-500"
-              >
-                {legsOptions.map((legs) => (
-                  <option key={legs} value={legs}>Best of {legs}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-gray-400 mb-2">Double Out</label>
-              <button
-                onClick={() => setQuickPlaySettings({ doubleOut: quickPlaySettings.doubleOut === 'on' ? 'off' : 'on' })}
-                className={`w-full py-2 px-4 rounded-lg text-sm font-medium transition-all ${
-                  quickPlaySettings.doubleOut === 'on'
-                    ? 'bg-emerald-500 text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                }`}
-              >
-                {quickPlaySettings.doubleOut === 'on' ? 'ON' : 'OFF'}
-              </button>
-            </div>
-            <Button 
-              onClick={startQuickMatch}
-              className="w-full bg-emerald-500 hover:bg-emerald-600 text-white"
-            >
-              Find Match
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Private Match Dialog */}
       <Dialog open={showPrivateMatchDialog} onOpenChange={setShowPrivateMatchDialog}>
