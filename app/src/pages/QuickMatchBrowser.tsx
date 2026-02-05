@@ -76,8 +76,9 @@ export function QuickMatchBrowser() {
   const checkMyLobbyStatus = async (matchId: string) => {
     try {
       const match = await quickMatchService.getMatch(matchId);
-      // If someone joined, redirect to game
+      // If someone joined, redirect both players to game
       if (match.status === 'in_progress' && match.player2_id) {
+        setMyLobby(null);
         navigateTo('game');
       }
     } catch (error) {
@@ -105,10 +106,10 @@ export function QuickMatchBrowser() {
     try {
       setLoading(true);
       await quickMatchService.joinLobby(matchId);
-      // Successfully joined, go to game
+      // Successfully joined, navigate to game immediately
       navigateTo('game');
     } catch (error: any) {
-      alert(error.message);
+      alert(error.message || 'Failed to join lobby');
       loadLobbies(); // Refresh to remove taken lobby
     } finally {
       setLoading(false);
@@ -118,11 +119,15 @@ export function QuickMatchBrowser() {
   const handleCancelMyLobby = async () => {
     if (!myLobby) return;
     try {
+      setLoading(true);
       await quickMatchService.cancelLobby(myLobby.id);
       setMyLobby(null);
-      loadLobbies();
-    } catch (error) {
+      await loadLobbies();
+    } catch (error: any) {
       console.error('Failed to cancel:', error);
+      alert(error.message || 'Failed to cancel lobby');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -197,12 +202,12 @@ export function QuickMatchBrowser() {
         {myLobby && (
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
-              <Crown className="w-5 h-5 text-yellow-500" />
-              <h2 className="text-lg font-bold text-yellow-500">YOUR LOBBY</h2>
-              <span className="bg-yellow-500 text-black text-xs px-2 py-1 rounded font-bold">HOST</span>
+              <Crown className="w-5 h-5 text-cyan-400" />
+              <h2 className="text-lg font-bold text-cyan-400">YOUR LOBBY</h2>
+              <span className="bg-cyan-500 text-white text-xs px-2 py-1 rounded font-bold">HOST</span>
             </div>
             
-            <div className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 border-2 border-yellow-500 rounded-lg p-6">
+            <div className="bg-gradient-to-r from-cyan-900/30 to-cyan-800/30 border-2 border-cyan-500 rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <h3 className="text-xl font-bold">{formatGameMode(myLobby)}</h3>
@@ -219,7 +224,7 @@ export function QuickMatchBrowser() {
 
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-full flex items-center justify-center text-2xl font-bold">
+                  <div className="w-14 h-14 bg-gradient-to-br from-cyan-400 to-cyan-600 rounded-full flex items-center justify-center text-2xl font-bold">
                     {myLobby.player1.username?.[0] || 'You'}
                   </div>
                   <div>
@@ -298,7 +303,7 @@ export function QuickMatchBrowser() {
                   <button 
                     onClick={() => handleJoinLobby(lobby.id)}
                     disabled={loading}
-                    className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2 rounded-full font-bold transition transform hover:scale-105 disabled:opacity-50"
+                    className="bg-cyan-500 hover:bg-cyan-600 text-white px-6 py-2 rounded-full font-bold transition transform hover:scale-105 disabled:opacity-50"
                   >
                     Join!
                   </button>
