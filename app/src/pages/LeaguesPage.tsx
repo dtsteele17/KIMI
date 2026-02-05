@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigationStore, useLeagueStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useLeagueStore } from '@/store';
 import { Navigation } from '@/components/Navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ const daysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Sat
 const legsOptions = [1, 3, 5, 7, 9, 11, 13, 15];
 
 export function LeaguesPage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { leagues, userLeagues, createLeague, setCurrentLeague } = useLeagueStore();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   
@@ -51,7 +52,7 @@ export function LeaguesPage() {
 
   const handleLeagueClick = (league: typeof leagues[0]) => {
     setCurrentLeague(league);
-    navigateTo('league-detail');
+    navigate(`/league/${league.id}`);
   };
 
   const userLeaguesList = leagues.filter(l => userLeagues.includes(l.id));

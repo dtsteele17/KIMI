@@ -1,11 +1,12 @@
-import { useNavigationStore, useAuthStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store';
 import { Navigation } from '@/components/Navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Shield, Share2, Edit3, TrendingUp, Trophy, Target, Percent, Calendar } from 'lucide-react';
 
 export function ProfilePage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { user, stats } = useAuthStore();
 
   return (
@@ -111,7 +112,7 @@ export function ProfilePage() {
                 </div>
               </div>
               <button 
-                onClick={() => navigateTo('ranked-divisions')}
+                onClick={() => navigate('/ranked-divisions')}
                 className="text-orange-400 text-sm hover:text-orange-300"
               >
                 View Ladder

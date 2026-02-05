@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { quickMatchService } from '@/services/quickMatchService';
-import { useNavigationStore, useGameStore } from '@/store';
+import { useGameStore } from '@/store';
 import { Navigation } from '@/components/Navigation';
 import type { Match, Profile } from '@/types/database';
 import { Clock, User, X } from 'lucide-react';
@@ -13,7 +14,7 @@ interface LobbyMatch extends Match {
 }
 
 export function QuickMatchLobby() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { quickPlaySettings } = useGameStore();
   const [match, setMatch] = useState<LobbyMatch | null>(null);
   const [timeWaiting, setTimeWaiting] = useState(0);
@@ -31,14 +32,14 @@ export function QuickMatchLobby() {
       setMatch(updatedMatch as LobbyMatch);
 
       if (updatedMatch.status === 'in_progress' && updatedMatch.player2_id) {
-        navigateTo('game');
+        navigate(`/game/${matchId}`);
       }
     });
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [matchId, navigateTo]);
+  }, [matchId, navigate]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -57,11 +58,11 @@ export function QuickMatchLobby() {
       setMatch(matchData as LobbyMatch);
 
       if (matchData.status === 'in_progress' && matchData.player2_id) {
-        navigateTo('game');
+        navigate(`/game/${matchId}`);
       }
     } catch (error: any) {
       alert(error.message || 'Failed to create lobby');
-      navigateTo('quick-match');
+      navigate('/quick-match');
     } finally {
       setLoading(false);
     }
@@ -71,10 +72,10 @@ export function QuickMatchLobby() {
     if (!matchId) return;
     try {
       await quickMatchService.cancelLobby(matchId);
-      navigateTo('quick-match');
+      navigate('/quick-match');
     } catch (error) {
       console.error('Failed to cancel:', error);
-      navigateTo('quick-match');
+      navigate('/quick-match');
     }
   };
 
@@ -151,7 +152,7 @@ export function QuickMatchLobby() {
 
           <div className="flex gap-3">
             <Button
-              onClick={() => navigateTo('quick-match')}
+              onClick={() => navigate('/quick-match')}
               variant="outline"
               className="flex-1 border-gray-700 text-gray-400 hover:text-white"
             >

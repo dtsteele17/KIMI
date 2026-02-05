@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigationStore, useGameStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useGameStore } from '@/store';
 import { Navigation } from '@/components/Navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,13 +8,13 @@ import { Shield, Zap, Users, GraduationCap } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export function PlayPage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const {
     trainingSettings,
     setTrainingSettings,
     startSearching
   } = useGameStore();
-  
+
   const [showPrivateMatchDialog, setShowPrivateMatchDialog] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -24,16 +25,16 @@ export function PlayPage() {
     setIsSearching(true);
     startSearching('ranked');
     setTimeout(() => {
-      navigateTo('game');
+      navigate('/game/temp');
     }, 3000);
   };
 
   const handleQuickMatch = () => {
-    navigateTo('quick-match');
+    navigate('/quick-match');
   };
 
   const handleStartTraining = () => {
-    navigateTo('training');
+    navigate('/training');
   };
 
   return (
@@ -254,7 +255,7 @@ export function PlayPage() {
             <Button 
               onClick={() => {
                 setShowPrivateMatchDialog(false);
-                navigateTo('game');
+                navigate('/game/temp');
               }}
               className="w-full bg-blue-500 hover:bg-blue-600 text-white"
             >

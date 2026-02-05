@@ -1,11 +1,11 @@
-import { useNavigationStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Navigation } from '@/components/Navigation';
 import { Trophy, TrendingUp, Flame, Play, Target } from 'lucide-react';
 
 export function DashboardPage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-[#0a0f1a]">
@@ -113,7 +113,7 @@ export function DashboardPage() {
                 <h3 className="text-xl font-semibold text-white mb-2">Ready to Play?</h3>
                 <p className="text-gray-300 mb-4">Start a new match or join a tournament to compete with others.</p>
                 <Button 
-                  onClick={() => navigateTo('play')}
+                  onClick={() => navigate('/play')}
                   className="bg-emerald-500 hover:bg-emerald-600 text-white"
                 >
                   <Play className="w-4 h-4 mr-2" />

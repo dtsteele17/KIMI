@@ -1,17 +1,18 @@
-import { useNavigationStore, useAuthStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Target, Users, Trophy } from 'lucide-react';
 
 export function HomePage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { isAuthenticated } = useAuthStore();
 
   const handleJoinNow = () => {
     if (isAuthenticated) {
-      navigateTo('dashboard');
+      navigate('/dashboard');
     } else {
-      navigateTo('signup');
+      navigate('/signup');
     }
   };
 
@@ -35,7 +36,7 @@ export function HomePage() {
         </div>
         <div className="flex items-center gap-4">
           <button 
-            onClick={() => navigateTo('login')}
+            onClick={() => navigate('/login')}
             className="text-white hover:text-emerald-400 transition-colors"
           >
             Log In

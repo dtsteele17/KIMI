@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigationStore, useTournamentStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useTournamentStore } from '@/store';
 import { Navigation } from '@/components/Navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ import { ArrowLeft, Users, Calendar, UserPlus, Settings, Swords } from 'lucide-r
 type TournamentTab = 'players' | 'bracket' | 'invite' | 'settings';
 
 export function TournamentDetailPage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { currentTournament } = useTournamentStore();
   const [activeTab, setActiveTab] = useState<TournamentTab>('players');
 
@@ -17,7 +18,7 @@ export function TournamentDetailPage() {
       <div className="min-h-screen bg-[#0a0f1a] flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-400 mb-4">No tournament selected</p>
-          <Button onClick={() => navigateTo('tournaments')} className="bg-emerald-500 hover:bg-emerald-600 text-white">
+          <Button onClick={() => navigate('/tournaments')} className="bg-emerald-500 hover:bg-emerald-600 text-white">
             Back to Tournaments
           </Button>
         </div>
@@ -41,7 +42,7 @@ export function TournamentDetailPage() {
           {/* Header */}
           <div className="flex items-center gap-4 mb-6">
             <button 
-              onClick={() => navigateTo('tournaments')}
+              onClick={() => navigate('/tournaments')}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />

@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useNavigationStore, useAuthStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Check, Eye, EyeOff } from 'lucide-react';
 
 export function LoginPage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { login } = useAuthStore();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,7 +22,7 @@ export function LoginPage() {
     const result = await login(email, password);
     setIsLoading(false);
     if (result.success) {
-      navigateTo('dashboard');
+      navigate('/dashboard');
     } else {
       setError(result.error || 'Login failed');
     }
@@ -32,7 +33,7 @@ export function LoginPage() {
       {/* Left Column */}
       <div className="flex-1 p-8">
         <button 
-          onClick={() => navigateTo('home')}
+          onClick={() => navigate('/')}
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-12"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -182,7 +183,7 @@ export function LoginPage() {
               Don't have an account?{' '}
               <button
                 type="button"
-                onClick={() => navigateTo('signup')}
+                onClick={() => navigate('/signup')}
                 className="text-emerald-400 hover:text-emerald-300"
               >
                 Sign up

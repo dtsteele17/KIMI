@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigationStore, useTournamentStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useTournamentStore } from '@/store';
 import { Navigation } from '@/components/Navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ const legsOptions = [1, 3, 5, 7, 9, 11, 13, 15];
 const participantOptions = [4, 8, 16, 32];
 
 export function TournamentsPage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { tournaments, joinTournament, setCurrentTournament } = useTournamentStore();
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [statusFilter, setStatusFilter] = useState('All Status');
@@ -39,7 +40,7 @@ export function TournamentsPage() {
 
   const handleTournamentClick = (tournament: typeof tournaments[0]) => {
     setCurrentTournament(tournament);
-    navigateTo('tournament-detail');
+    navigate(`/tournament/${tournament.id}`);
   };
 
   const filteredTournaments = tournaments.filter(t => {

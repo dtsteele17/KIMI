@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigationStore, useGameStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useGameStore } from '@/store';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -101,7 +102,7 @@ class DartBot {
 }
 
 export function TrainingPage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { trainingSettings } = useGameStore();
   
   const [playerScore, setPlayerScore] = useState(parseInt(trainingSettings.mode));
@@ -212,7 +213,7 @@ export function TrainingPage() {
   };
 
   const handleEndTraining = () => {
-    navigateTo('play');
+    navigate('/play');
   };
 
   const handlePlayAgain = () => {
@@ -536,7 +537,7 @@ export function TrainingPage() {
                 Play Again
               </Button>
               <Button 
-                onClick={() => navigateTo('play')}
+                onClick={() => navigate('/play')}
                 variant="outline"
                 className="flex-1 border-gray-700 text-white hover:bg-gray-800"
               >

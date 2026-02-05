@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useNavigationStore, useAuthStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '@/store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { ArrowLeft, Check, Eye, EyeOff } from 'lucide-react';
 
 export function SignupPage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { signup } = useAuthStore();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -35,7 +36,7 @@ export function SignupPage() {
     const result = await signup(username, email, password);
     setIsLoading(false);
     if (result.success) {
-      navigateTo('dashboard');
+      navigate('/dashboard');
     } else {
       setError(result.error || 'Signup failed');
     }
@@ -46,7 +47,7 @@ export function SignupPage() {
       {/* Left Column */}
       <div className="flex-1 p-8">
         <button 
-          onClick={() => navigateTo('home')}
+          onClick={() => navigate('/')}
           className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors mb-12"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -226,7 +227,7 @@ export function SignupPage() {
               Already have an account?{' '}
               <button
                 type="button"
-                onClick={() => navigateTo('login')}
+                onClick={() => navigate('/login')}
                 className="text-emerald-400 hover:text-emerald-300"
               >
                 Log in

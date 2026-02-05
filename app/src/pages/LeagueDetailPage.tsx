@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useNavigationStore, useLeagueStore } from '@/store';
+import { useNavigate } from 'react-router-dom';
+import { useLeagueStore } from '@/store';
 import { Navigation } from '@/components/Navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,7 @@ import { ArrowLeft, Users, Calendar, Trophy, UserPlus, Table, List } from 'lucid
 type LeagueTab = 'home' | 'table' | 'fixtures' | 'invite';
 
 export function LeagueDetailPage() {
-  const { navigateTo } = useNavigationStore();
+  const navigate = useNavigate();
   const { currentLeague } = useLeagueStore();
   const [activeTab, setActiveTab] = useState<LeagueTab>('home');
 
@@ -17,7 +18,7 @@ export function LeagueDetailPage() {
       <div className="min-h-screen bg-[#0a0f1a] flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-400 mb-4">No league selected</p>
-          <Button onClick={() => navigateTo('leagues')} className="bg-emerald-500 hover:bg-emerald-600 text-white">
+          <Button onClick={() => navigate('/leagues')} className="bg-emerald-500 hover:bg-emerald-600 text-white">
             Back to Leagues
           </Button>
         </div>
@@ -41,7 +42,7 @@ export function LeagueDetailPage() {
           {/* Header */}
           <div className="flex items-center gap-4 mb-6">
             <button 
-              onClick={() => navigateTo('leagues')}
+              onClick={() => navigate('/leagues')}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
