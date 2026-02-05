@@ -3,9 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { gameService } from '@/services/gameService';
 import { useAuthStore } from '@/store';
 import type { Match, Leg, Visit, Profile } from '@/types/database';
-import { 
-  RotateCcw, Edit2, Check, X, Camera, Mic, 
-  ChevronLeft, Trophy 
+import {
+  RotateCcw, Edit2, Check, X, Camera, Mic,
+  ChevronLeft
 } from 'lucide-react';
 
 interface MatchWithPlayers extends Match {
@@ -200,11 +200,11 @@ export function GamePage() {
         match_id: match.id,
         player_id: user.id,
         visit_number: visits.filter(v => v.leg_id === currentLeg.id).length + 1,
-        dart1_score: dartScores[0].score || null,
+        dart1_score: dartScores[0].score || undefined,
         dart1_multiplier: dartScores[0].multiplier,
-        dart2_score: dartScores[1].score || null,
+        dart2_score: dartScores[1].score || undefined,
         dart2_multiplier: dartScores[1].multiplier,
-        dart3_score: dartScores[2].score || null,
+        dart3_score: dartScores[2].score || undefined,
         dart3_multiplier: dartScores[2].multiplier,
         total_scored: bust ? 0 : totalScored,
         remaining_before: remainingBefore,
@@ -244,7 +244,7 @@ export function GamePage() {
         navigate('/dashboard');
       } else {
         // Create new leg
-        await gameService.createNewLeg(match.id, match.current_leg + 1, match.game_mode_id);
+        await gameService.createNewLeg(match.id, match.current_leg + 1, match.game_mode_id || '501');
       }
     } catch (err) {
       console.error('Error handling leg win:', err);
@@ -278,31 +278,31 @@ export function GamePage() {
   const editLastVisit = () => {
     const myVisits = visits.filter(v => v.player_id === user?.id);
     if (myVisits.length === 0) return;
-    
+
     const lastVisit = myVisits[myVisits.length - 1];
     setEditingVisit(lastVisit.id);
-    
+
     setDartScores([
-      { score: lastVisit.dart1_score || 0, multiplier: lastVisit.dart1_multiplier },
-      { score: lastVisit.dart2_score || 0, multiplier: lastVisit.dart2_multiplier },
-      { score: lastVisit.dart3_score || 0, multiplier: lastVisit.dart3_multiplier },
+      { score: lastVisit.dart1_score || 0, multiplier: lastVisit.dart1_multiplier || 1 },
+      { score: lastVisit.dart2_score || 0, multiplier: lastVisit.dart2_multiplier || 1 },
+      { score: lastVisit.dart3_score || 0, multiplier: lastVisit.dart3_multiplier || 1 },
     ]);
   };
 
   const saveEditedVisit = async () => {
     if (!editingVisit) return;
-    
+
     try {
       await gameService.updateVisit(editingVisit, {
-        dart1_score: dartScores[0].score || null,
+        dart1_score: dartScores[0].score || undefined,
         dart1_multiplier: dartScores[0].multiplier,
-        dart2_score: dartScores[1].score || null,
+        dart2_score: dartScores[1].score || undefined,
         dart2_multiplier: dartScores[1].multiplier,
-        dart3_score: dartScores[2].score || null,
+        dart3_score: dartScores[2].score || undefined,
         dart3_multiplier: dartScores[2].multiplier,
         total_scored: getTotalScore(),
       });
-      
+
       setEditingVisit(null);
       clearDarts();
       loadGameData();
@@ -335,8 +335,8 @@ export function GamePage() {
     </div>
   );
 
-  const player1Score = getPlayerScore(match.player1_id);
-  const player2Score = getPlayerScore(match.player2_id);
+  const player1Score = getPlayerScore(match.player1_id || '');
+  const player2Score = getPlayerScore(match.player2_id || '');
   const myScore = user?.id === match.player1_id ? player1Score : player2Score;
 
   return (
@@ -427,19 +427,19 @@ export function GamePage() {
                 {visit.player_id === match.player1_id ? match.player1.display_name : match.player2.display_name}
               </div>
               <div className="font-bold text-lg">
-                {visit.dart1_score > 0 && (
+                {(visit.dart1_score || 0) > 0 && (
                   <span className={visit.dart1_multiplier === 3 ? 'text-red-400' : visit.dart1_multiplier === 2 ? 'text-green-400' : ''}>
                     {visit.dart1_multiplier === 3 ? 'T' : visit.dart1_multiplier === 2 ? 'D' : ''}{visit.dart1_score}
                   </span>
                 )}
                 {' '}
-                {visit.dart2_score > 0 && (
+                {(visit.dart2_score || 0) > 0 && (
                   <span className={visit.dart2_multiplier === 3 ? 'text-red-400' : visit.dart2_multiplier === 2 ? 'text-green-400' : ''}>
                     {visit.dart2_multiplier === 3 ? 'T' : visit.dart2_multiplier === 2 ? 'D' : ''}{visit.dart2_score}
                   </span>
                 )}
                 {' '}
-                {visit.dart3_score > 0 && (
+                {(visit.dart3_score || 0) > 0 && (
                   <span className={visit.dart3_multiplier === 3 ? 'text-red-400' : visit.dart3_multiplier === 2 ? 'text-green-400' : ''}>
                     {visit.dart3_multiplier === 3 ? 'T' : visit.dart3_multiplier === 2 ? 'D' : ''}{visit.dart3_score}
                   </span>

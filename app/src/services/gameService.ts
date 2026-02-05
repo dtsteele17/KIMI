@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import type { Match, Leg, Visit } from '@/types/database';
+import type { Visit } from '@/types/database';
 
 export const gameService = {
   async getMatchWithDetails(matchId: string) {
