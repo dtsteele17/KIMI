@@ -5,6 +5,7 @@ import { LoginPage } from '@/pages/LoginPage';
 import { SignupPage } from '@/pages/SignupPage';
 import { DashboardPage } from '@/pages/DashboardPage';
 import { PlayPage } from '@/pages/PlayPage';
+import { QuickMatchBrowser } from '@/pages/QuickMatchBrowser';
 import { QuickMatchLobby } from '@/pages/QuickMatchLobby';
 import { RankedDivisionsPage } from '@/pages/RankedDivisionsPage';
 import { LeaguesPage } from '@/pages/LeaguesPage';
@@ -27,7 +28,7 @@ function App() {
 
   // Protected pages that require authentication
   const protectedPages = [
-    'dashboard', 'play', 'lobby', 'ranked-divisions', 'leagues', 'league-detail',
+    'dashboard', 'play', 'quick-match', 'lobby-create', 'ranked-divisions', 'leagues', 'league-detail',
     'tournaments', 'tournament-detail', 'stats', 'profile', 'friends', 'game', 'training'
   ];
 
@@ -53,7 +54,9 @@ function App() {
       return <DashboardPage />;
     case 'play':
       return <PlayPage />;
-    case 'lobby':
+    case 'quick-match':
+      return <QuickMatchBrowser />;
+    case 'lobby-create':
       return <QuickMatchLobby />;
     case 'ranked-divisions':
       return <RankedDivisionsPage />;

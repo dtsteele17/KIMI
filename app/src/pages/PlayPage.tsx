@@ -37,7 +37,7 @@ export function PlayPage() {
 
   const startQuickMatch = () => {
     setShowQuickMatchDialog(false);
-    navigateTo('lobby');
+    navigateTo('quick-match');
   };
 
   const handleStartTraining = () => {

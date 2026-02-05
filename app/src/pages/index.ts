@@ -3,6 +3,7 @@ export { LoginPage } from './LoginPage';
 export { SignupPage } from './SignupPage';
 export { DashboardPage } from './DashboardPage';
 export { PlayPage } from './PlayPage';
+export { QuickMatchBrowser } from './QuickMatchBrowser';
 export { QuickMatchLobby } from './QuickMatchLobby';
 export { RankedDivisionsPage } from './RankedDivisionsPage';
 export { LeaguesPage } from './LeaguesPage';
