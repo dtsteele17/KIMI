@@ -124,7 +124,24 @@ export const quickMatchService = {
 
     if (error) throw error;
   },
-
+  // Subscribe to ALL match changes (not just one lobby)
+  subscribeToAllMatches(onUpdate: () => void) {
+    return supabase
+      .channel('all-matches')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'matches',
+        },
+        () => {
+          onUpdate();
+        }
+      )
+      .subscribe();
+  },
+  
   // Get a specific match
   async getMatch(matchId: string) {
     const { data, error } = await supabase
